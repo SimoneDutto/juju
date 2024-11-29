@@ -262,7 +262,14 @@ use "juju unregister %s" to remove the existing controller.`[1:], c.domain, c.co
 			return errors.Trace(err)
 		}
 	}
-
+	auth := conn.AuthTag()
+	user, ok := auth.(names.UserTag)
+	// Check if the user logged in is the same specified in the `u` command flag.
+	// It's important when logging the user though an external provider.
+	if !ok || (!user.IsLocal() && c.username != "" && user.Id() != accountDetails.User) {
+		conn.Close()
+		return errors.Errorf("login credentials '%s' and username flag '%s' don't match \n", user.Id(), c.username)
+	}
 	// During the login process account details might have been updated so
 	// we fetch them from the store.
 	updatedAccountDetails, err := store.AccountDetails(c.controllerName)
@@ -494,6 +501,9 @@ Run "juju logout" first before attempting to log in as a different user.`,
 				c.onRunError = func() {
 					if err := c.ClearControllerMacaroons(c.ClientStore(), c.controllerName); err != nil {
 						logger.Errorf("failed to clear macaroon: %v", err)
+					}
+					if err := c.ClientStore().RemoveAccount(c.controllerName); err != nil {
+						logger.Errorf("Fail to remove the account")
 					}
 				}
 			}

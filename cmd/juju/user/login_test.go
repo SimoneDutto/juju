@@ -39,7 +39,7 @@ func (s *LoginCommandSuite) SetUpTest(c *gc.C) {
 	s.BaseSuite.SetUpTest(c)
 	s.apiConnection = &loginMockAPI{
 		controllerTag:    names.NewControllerTag(mockControllerUUID),
-		authTag:          names.NewUserTag("user@external"),
+		authTag:          names.NewUserTag("new-user"),
 		controllerAccess: "superuser",
 	}
 	s.apiConnectionParams = juju.NewAPIConnectionParams{}
@@ -110,6 +110,11 @@ There are no models available(.|\n)*`[1:])
 }
 
 func (s *LoginCommandSuite) TestLoginAlreadyLoggedInSameUser(c *gc.C) {
+	s.apiConnection = &loginMockAPI{
+		controllerTag:    names.NewControllerTag(mockControllerUUID),
+		authTag:          names.NewUserTag("current-user"),
+		controllerAccess: "superuser",
+	}
 	stdout, stderr, code := runLogin(c, "", "-u", "current-user")
 	c.Check(stdout, gc.Equals, "")
 	c.Check(stderr, gc.Equals, "")
@@ -130,7 +135,7 @@ func (s *LoginCommandSuite) TestLoginWithOneAvailableModel(c *gc.C) {
 	stdout, stderr, code := runLogin(c, "")
 	c.Assert(code, gc.Equals, 0)
 	c.Check(stdout, gc.Equals, "")
-	c.Check(stderr, gc.Matches, `Welcome, user@external. You are now logged into "testing".
+	c.Check(stderr, gc.Matches, `Welcome, new-user. You are now logged into "testing".
 
 Current model set to "bob/foo".
 `)
@@ -155,7 +160,7 @@ func (s *LoginCommandSuite) TestLoginWithSeveralAvailableModels(c *gc.C) {
 	stdout, stderr, code := runLogin(c, "")
 	c.Assert(code, gc.Equals, 0)
 	c.Check(stdout, gc.Equals, "")
-	c.Check(stderr, gc.Matches, `Welcome, user@external. You are now logged into "testing".
+	c.Check(stderr, gc.Matches, `Welcome, new-user. You are now logged into "testing".
 
 There are 2 models available. Use "juju switch" to select
 one of them:
@@ -229,6 +234,11 @@ Welcome, other-user. (.|\n)+`)
 func (s *LoginCommandSuite) TestLoginWithMacaroons(c *gc.C) {
 	err := s.store.RemoveAccount("testing")
 	c.Assert(err, jc.ErrorIsNil)
+	s.apiConnection = &loginMockAPI{
+		controllerTag:    names.NewControllerTag(mockControllerUUID),
+		authTag:          names.NewUserTag("user@external"),
+		controllerAccess: "superuser",
+	}
 	stdout, stderr, code := runLogin(c, "")
 	c.Check(stderr, gc.Matches, `
 Welcome, user@external. You are now logged into "testing".
@@ -237,6 +247,21 @@ There are no models available(.|\n)*`[1:])
 	c.Check(stdout, gc.Equals, ``)
 	c.Assert(code, gc.Equals, 0)
 	c.Assert(s.apiConnectionParams.AccountDetails, jc.DeepEquals, &jujuclient.AccountDetails{})
+}
+
+func (s *LoginCommandSuite) TestLoginExternalUserWithDifferentUsernameSet(c *gc.C) {
+	err := s.store.RemoveAccount("testing")
+	c.Assert(err, jc.ErrorIsNil)
+	s.apiConnection = &loginMockAPI{
+		controllerTag:    names.NewControllerTag(mockControllerUUID),
+		authTag:          names.NewUserTag("user@external"),
+		controllerAccess: "superuser",
+	}
+	stdout, stderr, code := runLogin(c, "", "-u", "user-different@external")
+	c.Check(stderr, gc.Matches, `
+ERROR login credentials 'user@external' and username flag 'user-different@external' don't match(.|\n)*`[1:])
+	c.Check(stdout, gc.Equals, ``)
+	c.Assert(code, gc.Equals, 1)
 }
 
 func (s *LoginCommandSuite) TestLoginWithMacaroonsNotSupported(c *gc.C) {
@@ -364,7 +389,6 @@ ERROR cannot log into "127.0.0.1:443": controller CA not trusted
 			expCode: 1,
 		},
 	}
-
 	for specIndex, spec := range specs {
 		c.Logf("test %d: %s", specIndex, spec.descr)
 		_ = s.store.RemoveAccount("foo")
