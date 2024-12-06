@@ -46,9 +46,17 @@ var validateTests = []struct {
 	config      controller.Config
 	expectError string
 }{{
-	about:       "missing CA cert",
-	expectError: `missing CA certificate`,
-}, {
+	about: "missing CA cert",
+	expectError: "",
+},
+{
+	about: "CA cert empty string",
+	config: controller.Config{
+		controller.CACertKey: "",
+	},
+	expectError: "",
+},
+{
 	about: "bad CA cert",
 	config: controller.Config{
 		controller.CACertKey: "xxx",

@@ -569,7 +569,9 @@ func NewConfig(controllerUUID, caCert string, attrs map[string]interface{}) (Con
 	}
 	attrs = coerced.(map[string]interface{})
 	attrs[ControllerUUIDKey] = controllerUUID
-	attrs[CACertKey] = caCert
+	if caCert != "" {
+		attrs[CACertKey] = caCert
+	}
 	config := Config(attrs)
 	return config, config.Validate()
 }
@@ -1047,13 +1049,12 @@ func Validate(c Config) error {
 	}
 
 	caCert, caCertOK := c.CACert()
-	if !caCertOK {
-		return errors.Errorf("missing CA certificate")
-	}
-	if ok, err := pki.IsPemCA([]byte(caCert)); err != nil {
-		return errors.Annotate(err, "bad CA certificate in configuration")
-	} else if !ok {
-		return errors.New("ca certificate in configuration is not a CA")
+	if caCertOK && caCert != "" {
+		if ok, err := pki.IsPemCA([]byte(caCert)); err != nil {
+			return errors.Annotate(err, "bad CA certificate in configuration")
+		} else if !ok {
+			return errors.New("ca certificate in configuration is not a CA")
+		}
 	}
 
 	if uuid, ok := c[ControllerUUIDKey].(string); ok && !utils.IsValidUUIDString(uuid) {
