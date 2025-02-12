@@ -12,6 +12,7 @@ import (
 
 	"github.com/gliderlabs/ssh"
 	"github.com/juju/errors"
+	"github.com/juju/names/v5"
 	"github.com/juju/worker/v3"
 	gossh "golang.org/x/crypto/ssh"
 	"gopkg.in/tomb.v2"
@@ -24,6 +25,8 @@ type ServerWorkerConfig struct {
 	// the server on a pre-existing listener, you can provide it here. Otherwise,
 	// leave this value nil and a listener will be spawned.
 	Listener net.Listener
+
+	Authorizer Authorizer
 }
 
 // Validate validates the workers configuration is as expected.
@@ -53,10 +56,8 @@ func NewServerWorker(config ServerWorkerConfig) (worker.Worker, error) {
 
 	s := &ServerWorker{config: config}
 	s.Server = &ssh.Server{
-		Addr: ":2223",
-		PublicKeyHandler: func(ctx ssh.Context, key ssh.PublicKey) bool {
-			return true
-		},
+		Addr:             ":2223",
+		PublicKeyHandler: s.publicKeyHandler(),
 		PasswordHandler: func(ctx ssh.Context, password string) bool {
 			return true
 		},
@@ -204,4 +205,30 @@ func (s *ServerWorker) directTCPIPHandler(srv *ssh.Server, conn *gossh.ServerCon
 
 	server.AddHostKey(signer)
 	server.HandleConn(terminatingServerPipe)
+}
+
+func (s *ServerWorker) publicKeyHandler() func(ssh.Context, ssh.PublicKey) bool {
+	return func(ctx ssh.Context, key ssh.PublicKey) bool {
+		if !names.IsValidUserName(ctx.User()) {
+			s.config.Logger.Errorf("username not valid")
+			return false
+		}
+		authKeys, err := s.config.Authorizer.AuthorizedKeysPerUser(names.NewUserTag(ctx.User()))
+		if err != nil {
+			s.config.Logger.Errorf("failed to get authorized key for user: %v", err)
+			return false
+		}
+		for _, authKey := range authKeys {
+			pubKey, err := gossh.ParsePublicKey([]byte(authKey))
+			if err != nil {
+				s.config.Logger.Errorf("failed to parse user public key: %v", err)
+				continue
+			}
+			if ssh.KeysEqual(key, pubKey) {
+				return true
+			}
+		}
+		s.config.Logger.Errorf("failed to find a matching public key")
+		return false
+	}
 }

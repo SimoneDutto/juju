@@ -9,6 +9,7 @@ import (
 	"github.com/juju/worker/v3/dependency"
 
 	"github.com/juju/juju/worker/common"
+	"github.com/juju/juju/worker/sshserver/sshhelper"
 	workerstate "github.com/juju/juju/worker/state"
 )
 
@@ -75,14 +76,19 @@ func (config ManifoldConfig) startWrapperWorker(context dependency.Context) (wor
 		_ = stTracker.Done()
 		return nil, errors.Trace(err)
 	}
-
-	sysState, err := statePool.SystemState()
+	systemState, err := statePool.SystemState()
 	if err != nil {
+		_ = stTracker.Done()
 		return nil, errors.Trace(err)
 	}
-
+	sshAuthorizer, err := sshhelper.NewAuthorizer(statePool)
+	if err != nil {
+		_ = stTracker.Done()
+		return nil, errors.Trace(err)
+	}
 	w, err := config.NewServerWrapperWorker(ServerWrapperWorkerConfig{
-		SystemState:     sysState,
+		Authorizer:      sshAuthorizer,
+		SystemState:     systemState,
 		NewServerWorker: config.NewServerWorker,
 		Logger:          config.Logger,
 	})
@@ -92,7 +98,7 @@ func (config ManifoldConfig) startWrapperWorker(context dependency.Context) (wor
 	}
 
 	return common.NewCleanupWorker(w, func() {
-		if err := sysState.Close(); err != nil {
+		if err := systemState.Close(); err != nil {
 			config.Logger.Errorf("failed to close system state %v", err)
 		}
 		_ = stTracker.Done()
