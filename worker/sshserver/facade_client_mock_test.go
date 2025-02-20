@@ -12,8 +12,10 @@ package sshserver_test
 import (
 	reflect "reflect"
 
+	ssh "github.com/gliderlabs/ssh"
 	controller "github.com/juju/juju/controller"
 	watcher "github.com/juju/juju/core/watcher"
+	names "github.com/juju/names/v5"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -53,6 +55,21 @@ func (m *MockFacadeClient) ControllerConfig() (controller.Config, error) {
 func (mr *MockFacadeClientMockRecorder) ControllerConfig() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ControllerConfig", reflect.TypeOf((*MockFacadeClient)(nil).ControllerConfig))
+}
+
+// PublicKeyAuthentication mocks base method.
+func (m *MockFacadeClient) PublicKeyAuthentication(arg0 names.UserTag, arg1 ssh.PublicKey) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "PublicKeyAuthentication", arg0, arg1)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// PublicKeyAuthentication indicates an expected call of PublicKeyAuthentication.
+func (mr *MockFacadeClientMockRecorder) PublicKeyAuthentication(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PublicKeyAuthentication", reflect.TypeOf((*MockFacadeClient)(nil).PublicKeyAuthentication), arg0, arg1)
 }
 
 // SSHServerHostKey mocks base method.

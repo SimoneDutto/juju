@@ -4,6 +4,9 @@
 package sshserver
 
 import (
+	"github.com/gliderlabs/ssh"
+	"github.com/juju/names/v5"
+
 	"github.com/juju/juju/api/base"
 	"github.com/juju/juju/api/common"
 	apiwatcher "github.com/juju/juju/api/watcher"
@@ -47,6 +50,18 @@ func (c *Client) SSHServerHostKey() (string, error) {
 	}
 	if err := result.Error; err != nil {
 		return "", err
+	}
+	return result.Result, nil
+}
+
+func (c *Client) PublicKeyAuthentication(userTag names.UserTag, publicKey ssh.PublicKey) (bool, error) {
+	var result params.BoolResult
+	err := c.facade.FacadeCall("PublicKeyAuthentication", nil, &result)
+	if err != nil {
+		return false, err
+	}
+	if err := result.Error; err != nil {
+		return false, err
 	}
 	return result.Result, nil
 }

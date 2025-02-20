@@ -4,7 +4,9 @@
 package sshserver
 
 import (
+	"github.com/gliderlabs/ssh"
 	"github.com/juju/errors"
+	"github.com/juju/names/v5"
 	"github.com/juju/worker/v3"
 	"github.com/juju/worker/v3/dependency"
 
@@ -24,6 +26,7 @@ type FacadeClient interface {
 	ControllerConfig() (controller.Config, error)
 	WatchControllerConfig() (watcher.NotifyWatcher, error)
 	SSHServerHostKey() (string, error)
+	PublicKeyAuthentication(userTag names.UserTag, publicKey ssh.PublicKey) (bool, error)
 }
 
 // ManifoldConfig holds the information necessary to run an embedded SSH server
