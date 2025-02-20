@@ -14,6 +14,7 @@ import (
 
 	controller "github.com/juju/juju/controller"
 	watcher "github.com/juju/juju/core/watcher"
+	params "github.com/juju/juju/rpc/params"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -53,6 +54,20 @@ func (m *MockFacadeClient) ControllerConfig() (controller.Config, error) {
 func (mr *MockFacadeClientMockRecorder) ControllerConfig() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ControllerConfig", reflect.TypeOf((*MockFacadeClient)(nil).ControllerConfig))
+}
+
+// PublicKeyAuthentication mocks base method.
+func (m *MockFacadeClient) PublicKeyAuthentication(arg0 params.SSHPKIAuthArgs) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "PublicKeyAuthentication", arg0)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// PublicKeyAuthentication indicates an expected call of PublicKeyAuthentication.
+func (mr *MockFacadeClientMockRecorder) PublicKeyAuthentication(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PublicKeyAuthentication", reflect.TypeOf((*MockFacadeClient)(nil).PublicKeyAuthentication), arg0)
 }
 
 // SSHServerHostKey mocks base method.

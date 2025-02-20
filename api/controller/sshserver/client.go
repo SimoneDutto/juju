@@ -50,3 +50,17 @@ func (c *Client) SSHServerHostKey() (string, error) {
 	}
 	return result.Result, nil
 }
+
+// PublicKeyAuthentication tries to verify that a public key belongs to a user,
+// and it returns no error in case of success, otherwise it return an error.
+func (c *Client) PublicKeyAuthentication(sshPKIAuthArgs params.SSHPKIAuthArgs) error {
+	var result params.ErrorResult
+	err := c.facade.FacadeCall("PublicKeyAuthentication", sshPKIAuthArgs, &result)
+	if err != nil {
+		return err
+	}
+	if err := result.Error; err != nil {
+		return err
+	}
+	return nil
+}

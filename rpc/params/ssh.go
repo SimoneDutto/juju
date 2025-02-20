@@ -58,3 +58,8 @@ type SSHPublicKeysResult struct {
 	Error      *Error   `json:"error,omitempty"`
 	PublicKeys []string `json:"public-keys,omitempty"`
 }
+
+type SSHPKIAuthArgs struct {
+	PublicKey []byte `json:"public-key"`
+	UserTag   string `json:"user-tag"`
+}

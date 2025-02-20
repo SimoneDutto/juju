@@ -4,14 +4,14 @@
 package sshserver
 
 import (
-	"testing"
+	stdtesting "testing"
 
-	gc "gopkg.in/check.v1"
+	"github.com/juju/juju/testing"
 )
 
 //go:generate go run go.uber.org/mock/mockgen -package sshserver_test -destination context_mocks_test.go github.com/juju/juju/apiserver/facade Authorizer,Context,Resources
-//go:generate go run go.uber.org/mock/mockgen -package sshserver_test -destination mocks_test.go github.com/juju/juju/apiserver/facades/controller/sshserver Backend
+//go:generate go run go.uber.org/mock/mockgen -package sshserver_test -destination mocks_test.go github.com/juju/juju/apiserver/facades/controller/sshserver SystemState,StatePool
 
-func TestAll(t *testing.T) {
-	gc.TestingT(t)
+func TestAll(t *stdtesting.T) {
+	testing.MgoTestPackage(t)
 }

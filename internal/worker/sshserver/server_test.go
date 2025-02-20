@@ -6,9 +6,12 @@ package sshserver_test
 import (
 	"crypto/rand"
 	"crypto/rsa"
+	"fmt"
+	"strings"
 
 	"github.com/juju/errors"
 	"github.com/juju/loggo"
+	"github.com/juju/names/v5"
 	"github.com/juju/testing"
 	jc "github.com/juju/testing/checkers"
 	"github.com/juju/worker/v3/workertest"
@@ -18,6 +21,7 @@ import (
 	gc "gopkg.in/check.v1"
 
 	"github.com/juju/juju/internal/worker/sshserver"
+	params "github.com/juju/juju/rpc/params"
 	jujutesting "github.com/juju/juju/testing"
 )
 
@@ -77,6 +81,12 @@ func (s *sshServerSuite) TestValidate(c *gc.C) {
 		cfg.JumpHostKey = ""
 	})
 	c.Assert(cfg.Validate(), jc.ErrorIs, errors.NotValid)
+
+	// Test no FacadeClient.
+	cfg = newServerWorkerConfig(l, "jumpHostKey", func(cfg *sshserver.ServerWorkerConfig) {
+		cfg.FacadeClient = nil
+	})
+	c.Assert(cfg.Validate(), jc.ErrorIs, errors.NotValid)
 }
 
 func (s *sshServerSuite) TestSSHServer(c *gc.C) {
@@ -85,11 +95,13 @@ func (s *sshServerSuite) TestSSHServer(c *gc.C) {
 
 	// Firstly, start the server on an in-memory listener
 	listener := bufconn.Listen(8 * 1024)
+	facadeClient := NewMockFacadeClient(ctrl)
 
 	server, err := sshserver.NewServerWorker(sshserver.ServerWorkerConfig{
-		Logger:      loggo.GetLogger("test"),
-		Listener:    listener,
-		JumpHostKey: jujutesting.SSHServerHostKey,
+		Logger:       loggo.GetLogger("test"),
+		Listener:     listener,
+		JumpHostKey:  jujutesting.SSHServerHostKey,
+		FacadeClient: facadeClient,
 	})
 	c.Assert(err, jc.ErrorIsNil)
 	defer workertest.DirtyKill(c, server)
@@ -141,4 +153,76 @@ func (s *sshServerSuite) TestSSHServer(c *gc.C) {
 	// Server isn't gracefully closed, it's forcefully closed. All connections ended
 	// from server side.
 	workertest.CleanKill(c, server)
+}
+
+func (s *sshServerSuite) TestSSHPublicKeyHandler(c *gc.C) {
+	ctrl := gomock.NewController(c)
+	defer ctrl.Finish()
+
+	listener := bufconn.Listen(8 * 1024)
+	facadeClient := NewMockFacadeClient(ctrl)
+
+	facadeClient.EXPECT().PublicKeyAuthentication(gomock.Any()).DoAndReturn(func(sshPKIAuthArgs params.SSHPKIAuthArgs) error {
+		if strings.Contains(sshPKIAuthArgs.UserTag, "alice") {
+			return nil
+		}
+		return errors.NotFound
+	}).AnyTimes()
+
+	server, err := sshserver.NewServerWorker(sshserver.ServerWorkerConfig{
+		Logger:       loggo.GetLogger("test"),
+		Listener:     listener,
+		JumpHostKey:  jujutesting.SSHServerHostKey,
+		FacadeClient: facadeClient,
+	})
+	c.Assert(err, gc.IsNil)
+	defer workertest.DirtyKill(c, server)
+
+	userKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	c.Assert(err, gc.IsNil)
+
+	notValidSigner, err := ssh.NewSignerFromKey(userKey)
+	c.Assert(err, gc.IsNil)
+
+	tests := []struct {
+		name          string
+		user          names.UserTag
+		key           ssh.Signer
+		expectSuccess bool
+	}{
+		{
+			name:          "valid user and public key",
+			user:          names.NewUserTag("alice"),
+			key:           s.userSigner,
+			expectSuccess: true,
+		},
+		{
+			name:          "user not found",
+			user:          names.NewUserTag("notfound"),
+			key:           notValidSigner,
+			expectSuccess: false,
+		},
+	}
+
+	for _, test := range tests {
+		c.Log(test.name)
+		conn, err := listener.Dial()
+		c.Assert(err, gc.IsNil)
+		_, _, _, err = ssh.NewClientConn(
+			conn,
+			"",
+			&ssh.ClientConfig{
+				User:            test.user.Name(),
+				HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+				Auth: []ssh.AuthMethod{
+					ssh.PublicKeys(test.key),
+				},
+			},
+		)
+		if !test.expectSuccess {
+			c.Assert(err, gc.ErrorMatches, fmt.Sprintf(".*ssh: handshake failed: ssh: unable to authenticate.*"))
+		} else {
+			c.Assert(err, gc.IsNil)
+		}
+	}
 }

@@ -39,15 +39,16 @@ func (s *sshserverSuite) TestControllerConfig(c *gc.C) {
 	defer ctrl.Finish()
 
 	ctx := NewMockContext(ctrl)
-	backend := NewMockBackend(ctrl)
+	systemState := NewMockSystemState(ctrl)
+	statePool := NewMockStatePool(ctrl)
 
 	ctx.EXPECT().Resources().Times(1)
-	backend.EXPECT().ControllerConfig().Return(
+	systemState.EXPECT().ControllerConfig().Return(
 		controller.Config{"hi": "bye"},
 		nil,
 	)
 
-	f := sshserver.NewFacade(ctx, backend)
+	f := sshserver.NewFacade(ctx, statePool, systemState)
 
 	cfg, err := f.ControllerConfig()
 	c.Assert(err, gc.IsNil)
@@ -59,16 +60,17 @@ func (s *sshserverSuite) TestWatchControllerConfig(c *gc.C) {
 	defer ctrl.Finish()
 
 	ctx := NewMockContext(ctrl)
-	backend := NewMockBackend(ctrl)
+	systemState := NewMockSystemState(ctrl)
+	statePool := NewMockStatePool(ctrl)
 	resources := NewMockResources(ctrl)
 	watcher := workertest.NewFakeWatcher(1, 0)
 	watcher.Ping() // Send some changes
 
 	ctx.EXPECT().Resources().Return(resources)
-	backend.EXPECT().WatchControllerConfig().Return(watcher)
+	systemState.EXPECT().WatchControllerConfig().Return(watcher)
 	resources.EXPECT().Register(watcher).Return("id")
 
-	f := sshserver.NewFacade(ctx, backend)
+	f := sshserver.NewFacade(ctx, statePool, systemState)
 
 	result, err := f.WatchControllerConfig()
 	c.Assert(err, gc.IsNil)
@@ -76,7 +78,7 @@ func (s *sshserverSuite) TestWatchControllerConfig(c *gc.C) {
 
 	// Now we close the channel expecting err
 	watcher.Close()
-	backend.EXPECT().WatchControllerConfig().Return(watcher)
+	systemState.EXPECT().WatchControllerConfig().Return(watcher)
 
 	_, err = f.WatchControllerConfig()
 	c.Assert(err, gc.ErrorMatches, "An error")
@@ -87,12 +89,13 @@ func (s *sshserverSuite) TestSSHServerHostKey(c *gc.C) {
 	defer ctrl.Finish()
 
 	ctx := NewMockContext(ctrl)
-	backend := NewMockBackend(ctrl)
+	systemState := NewMockSystemState(ctrl)
+	statePool := NewMockStatePool(ctrl)
 
 	ctx.EXPECT().Resources().Times(1)
-	backend.EXPECT().SSHServerHostKey().Return("hostkey", nil)
+	systemState.EXPECT().SSHServerHostKey().Return("hostkey", nil)
 
-	f := sshserver.NewFacade(ctx, backend)
+	f := sshserver.NewFacade(ctx, statePool, systemState)
 
 	key, err := f.SSHServerHostKey()
 	c.Assert(err, gc.IsNil)

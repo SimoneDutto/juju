@@ -101,3 +101,29 @@ func (s *sshserverSuite) TestSSHServerHostKeyError(c *gc.C) {
 	_, err = client.SSHServerHostKey()
 	c.Assert(err, gc.ErrorMatches, "blah")
 }
+
+func (s *sshserverSuite) TestPublicKeyAuthentication(c *gc.C) {
+	client, err := newClient(
+		func(objType string, version int, id, request string, arg, result interface{}) error {
+			c.Check(objType, gc.Equals, "SSHServer")
+			c.Check(id, gc.Equals, "")
+			c.Check(request, gc.Equals, "PublicKeyAuthentication")
+			c.Assert(arg, gc.FitsTypeOf, params.SSHPKIAuthArgs{})
+			c.Assert(arg, gc.DeepEquals, params.SSHPKIAuthArgs{
+				PublicKey: []byte("key"),
+				UserTag:   "user",
+			})
+			c.Assert(result, gc.FitsTypeOf, &params.ErrorResult{})
+
+			*(result.(*params.ErrorResult)) = params.ErrorResult{}
+			return nil
+		},
+	)
+	c.Assert(err, jc.ErrorIsNil)
+
+	err = client.PublicKeyAuthentication(params.SSHPKIAuthArgs{
+		PublicKey: []byte("key"),
+		UserTag:   "user",
+	})
+	c.Assert(err, jc.ErrorIsNil)
+}

@@ -98,14 +98,14 @@ func (ssw *serverWrapperWorker) loop() error {
 	}
 
 	srv, err := ssw.config.NewServerWorker(ServerWorkerConfig{
-		Logger:      ssw.config.Logger,
-		JumpHostKey: jumpHostKey,
-		Port:        port,
+		Logger:       ssw.config.Logger,
+		JumpHostKey:  jumpHostKey,
+		Port:         port,
+		FacadeClient: ssw.config.FacadeClient,
 	})
 	if err != nil {
 		return errors.Trace(err)
 	}
-
 	if err := ssw.catacomb.Add(srv); err != nil {
 		return errors.Trace(err)
 	}
@@ -139,9 +139,10 @@ func (ssw *serverWrapperWorker) loop() error {
 
 			// Start the server again.
 			srv, err = ssw.config.NewServerWorker(ServerWorkerConfig{
-				Logger:      ssw.config.Logger,
-				JumpHostKey: jumpHostKey,
-				Port:        port,
+				Logger:       ssw.config.Logger,
+				JumpHostKey:  jumpHostKey,
+				Port:         port,
+				FacadeClient: ssw.config.FacadeClient,
 			})
 			if err != nil {
 				return errors.Trace(err)

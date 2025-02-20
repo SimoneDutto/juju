@@ -14,9 +14,12 @@ import (
 
 	"github.com/gliderlabs/ssh"
 	"github.com/juju/errors"
+	"github.com/juju/names/v5"
 	"github.com/juju/worker/v3"
 	gossh "golang.org/x/crypto/ssh"
 	"gopkg.in/tomb.v2"
+
+	"github.com/juju/juju/rpc/params"
 )
 
 // ServerWorkerConfig holds the configuration required by the server worker.
@@ -35,6 +38,9 @@ type ServerWorkerConfig struct {
 	// Port holds the port the server will listen on. If you provide your own listener
 	// this can be left zeroed.
 	Port int
+
+	// FacadeClient holds the SSH server's facade client.
+	FacadeClient FacadeClient
 }
 
 // Validate validates the workers configuration is as expected.
@@ -44,6 +50,9 @@ func (c ServerWorkerConfig) Validate() error {
 	}
 	if c.JumpHostKey == "" {
 		return errors.NotValidf("empty JumpHostKey")
+	}
+	if c.FacadeClient == nil {
+		return errors.NotValidf("nil FacadeClient")
 	}
 	return nil
 }
@@ -68,6 +77,19 @@ func NewServerWorker(config ServerWorkerConfig) (worker.Worker, error) {
 	s := &ServerWorker{config: config}
 	s.Server = &ssh.Server{
 		PublicKeyHandler: func(ctx ssh.Context, key ssh.PublicKey) bool {
+			if !names.IsValidUserName(ctx.User()) {
+				s.config.Logger.Errorf("username not valid")
+				return false
+			}
+			sshPkiAuthArgs := params.SSHPKIAuthArgs{
+				UserTag:   names.NewUserTag(ctx.User()).String(),
+				PublicKey: key.Marshal(),
+			}
+			err := config.FacadeClient.PublicKeyAuthentication(sshPkiAuthArgs)
+			if err != nil {
+				s.config.Logger.Errorf("failed to authenticate user: %v", err)
+				return false
+			}
 			return true
 		},
 		PasswordHandler: func(ctx ssh.Context, password string) bool {

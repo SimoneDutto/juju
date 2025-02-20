@@ -25,11 +25,11 @@ func NewExternalFacade(ctx facade.Context) (*Facade, error) {
 	if !authorizer.AuthController() {
 		return nil, apiservererrors.ErrPerm
 	}
-
-	systemState, err := ctx.StatePool().SystemState()
+	statePool := ctx.StatePool()
+	systemState, err := statePool.SystemState()
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
 
-	return NewFacade(ctx, systemState), nil
+	return NewFacade(ctx, statePool, systemState), nil
 }
