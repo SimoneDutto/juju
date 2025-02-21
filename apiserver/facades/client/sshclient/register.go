@@ -21,6 +21,9 @@ func Register(registry facade.FacadeRegistry) {
 	registry.MustRegister("SSHClient", 4, func(ctx facade.Context) (facade.Facade, error) {
 		return newFacade(ctx)
 	}, reflect.TypeOf((*Facade)(nil)))
+	registry.MustRegister("SSHClient", 5, func(ctx facade.Context) (facade.Facade, error) {
+		return newFacade(ctx)
+	}, reflect.TypeOf((*Facade)(nil)))
 }
 
 func newFacade(ctx facade.Context) (*Facade, error) {
