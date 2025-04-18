@@ -35,7 +35,7 @@ func (s *workerSuite) newWorkerConfig(modifier func(*ServerWrapperWorkerConfig))
 		Logger:               loggo.GetLogger("test"),
 		FacadeClient:         s.facadeClient,
 		NewSSHServerListener: newTestingSSHServerListener,
-		ProxyHandlers:        s.proxyHandlers,
+		ProxyFactory:         s.proxyHandlers,
 		JWTParser:            s.jwtParser,
 		metricsCollector:     NewMetricsCollector(),
 	}
@@ -106,7 +106,7 @@ func (s *workerSuite) TestValidate(c *gc.C) {
 	// Test no SessionHandler.
 	cfg = s.newWorkerConfig(
 		func(cfg *ServerWrapperWorkerConfig) {
-			cfg.ProxyHandlers = nil
+			cfg.ProxyFactory = nil
 		},
 	)
 	c.Assert(cfg.Validate(), jc.ErrorIs, errors.NotValid)

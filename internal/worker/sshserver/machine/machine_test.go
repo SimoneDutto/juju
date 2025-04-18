@@ -1,7 +1,7 @@
 // Copyright 2025 Canonical Ltd.
 // Licensed under the AGPLv3, see LICENCE file for details.
 
-package sshserver
+package machine
 
 import (
 	"bytes"
@@ -150,7 +150,7 @@ func (s *machineHandlersSuite) TestMachineSessionProxy(c *gc.C) {
 		},
 	)
 
-	sessionHandler, err := newMachineHandlers(s.mockConnector, loggo.GetLogger("test"))
+	sessionHandler, err := NewHandlers(s.mockConnector, loggo.GetLogger("test"))
 	c.Assert(err, jc.ErrorIsNil)
 	err = sessionHandler.machineSessionProxy(s.userSession, virtualhostname.Info{})
 	c.Check(err, jc.ErrorIsNil)
@@ -188,7 +188,7 @@ func (s *machineHandlersSuite) TestMachineSessionHandler(c *gc.C) {
 		},
 	)
 
-	machineHandlers, err := newMachineHandlers(s.mockConnector, loggo.GetLogger("test"))
+	machineHandlers, err := NewHandlers(s.mockConnector, loggo.GetLogger("test"))
 	c.Assert(err, jc.ErrorIsNil)
 
 	err = machineHandlers.machineSessionProxy(s.userSession, virtualhostname.Info{})
@@ -210,7 +210,7 @@ func (s *machineHandlersSuite) TestConnectToMachineError(c *gc.C) {
 		},
 	)
 
-	machineHandlers, err := newMachineHandlers(s.mockConnector, loggo.GetLogger("test"))
+	machineHandlers, err := NewHandlers(s.mockConnector, loggo.GetLogger("test"))
 	c.Assert(err, jc.ErrorIsNil)
 
 	err = machineHandlers.SessionHandler(s.userSession, connectionDetails{})
@@ -276,7 +276,7 @@ func machineHandler(srv *ssh.Server, conn *gossh.ServerConn, newChan gossh.NewCh
 func (s *machineHandlersSuite) TestLocalPortForwarding(c *gc.C) {
 	defer s.setupMocks(c).Finish()
 
-	machineHandlers, err := newMachineHandlers(s.mockConnector, loggo.GetLogger("test"))
+	machineHandlers, err := NewHandlers(s.mockConnector, loggo.GetLogger("test"))
 	c.Assert(err, jc.ErrorIsNil)
 
 	details := connectionDetails{
@@ -330,7 +330,7 @@ func (s *machineHandlersSuite) TestLocalPortForwarding(c *gc.C) {
 func (s *machineHandlersSuite) TestLocalPortForwardingFailsToConnect(c *gc.C) {
 	defer s.setupMocks(c).Finish()
 
-	machineHandlers, err := newMachineHandlers(s.mockConnector, loggo.GetLogger("test"))
+	machineHandlers, err := NewHandlers(s.mockConnector, loggo.GetLogger("test"))
 	c.Assert(err, jc.ErrorIsNil)
 
 	details := connectionDetails{

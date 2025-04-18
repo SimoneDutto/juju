@@ -95,7 +95,7 @@ func (s *sshServerSuite) newServerWorkerConfig(
 		NewSSHServerListener:     newTestingSSHServerListener,
 		FacadeClient:             s.facadeClient,
 		JWTParser:                s.jwtParser,
-		ProxyHandlers:            s.proxyHandlers,
+		ProxyFactory:             s.proxyHandlers,
 		disableAuth:              true,
 		TunnelTracker:            &sshtunneler.Tracker{},
 		metricsCollector:         NewMetricsCollector(),

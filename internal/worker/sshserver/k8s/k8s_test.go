@@ -1,7 +1,7 @@
 // Copyright 2025 Canonical Ltd.
 // Licensed under the AGPLv3, see LICENCE file for details.
 
-package sshserver
+package k8s
 
 import (
 	"errors"
@@ -45,7 +45,7 @@ func (s *k8sSessionSuite) TestSessionHandler(c *gc.C) {
 		return nil
 	})
 
-	k8sHandlers, err := newK8sHandlers(
+	k8sHandlers, err := NewHandler(
 		s.facadeClient,
 		l,
 		func(string) (k8sexec.Executor, error) {
