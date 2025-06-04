@@ -229,7 +229,7 @@ func (s *CAASModelSuite) TestCAASModelWrongCloudRegion(c *gc.C) {
 		Owner:                   names.NewUserTag("test@remote"),
 		StorageProviderRegistry: provider.CommonStorageProviders(),
 	})
-	c.Assert(err, gc.ErrorMatches, `region "fork" not found \(expected one of \["dotty.region" "dummy-region" "nether-region" "unused-region"\]\)`)
+	c.Assert(err, gc.ErrorMatches, `.*region "fork" not found \(expected one of \["dotty.region" "dummy-region" "nether-region" "unused-region"\]\)`)
 }
 
 func (s *CAASModelSuite) TestDestroyControllerAndHostedCAASModels(c *gc.C) {
