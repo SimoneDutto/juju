@@ -16,6 +16,7 @@ import (
 	"github.com/juju/names/v5"
 	jc "github.com/juju/testing/checkers"
 	"github.com/juju/utils/v3"
+	"golang.org/x/sync/errgroup"
 	gc "gopkg.in/check.v1"
 
 	"github.com/juju/juju/cloud"
@@ -330,6 +331,44 @@ func (s *ModelSuite) TestNewModel(c *gc.C) {
 	// Ensure the default model was created.
 	_, err = st.SpaceByName(network.AlphaSpaceName)
 	c.Assert(err, jc.ErrorIsNil)
+}
+
+func (s *ModelSuite) TestNewModelConcurrent(c *gc.C) {
+	owner := names.NewUserTag("test@remote")
+	eg := errgroup.Group{}
+	for range 10 {
+		uuid, err := utils.NewUUID()
+		c.Assert(err, jc.ErrorIsNil)
+		cfg := testing.CustomModelConfig(c, testing.Attrs{
+			"name": utils.RandomString(10, []rune("abcdefghijklmnopqrstuvwxyz")),
+			"uuid": uuid.String(),
+		})
+		eg.Go(func() error {
+			model, st, err := s.Controller.NewModel(state.ModelArgs{
+				Type:                    state.ModelTypeIAAS,
+				CloudName:               "dummy",
+				CloudRegion:             "dummy-region",
+				Config:                  cfg,
+				Owner:                   owner,
+				StorageProviderRegistry: storage.StaticProviderRegistry{},
+			})
+			if err != nil {
+				return err
+			}
+			defer st.Close()
+			c.Assert(model.UUID(), gc.Equals, uuid.String())
+			return err
+		})
+	}
+	err := eg.Wait()
+	c.Assert(err, jc.ErrorIsNil)
+
+	// Check that the cloud's model count is incremented.
+	testCloud, err := s.State.Cloud("dummy")
+	c.Assert(err, jc.ErrorIsNil)
+	refCount, err := state.CloudModelRefCount(s.State, testCloud.Name)
+	c.Assert(err, jc.ErrorIsNil)
+	c.Assert(refCount, gc.Equals, 11) // 1 controller model + 10 new models
 }
 
 func (s *ModelSuite) TestNewModelRegionNameEscaped(c *gc.C) {
