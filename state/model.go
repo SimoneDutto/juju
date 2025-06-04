@@ -338,6 +338,25 @@ func (ctlr *Controller) NewModel(args ModelArgs) (_ *Model, _ *State, err error)
 		return nil, nil, errors.Trace(err)
 	}
 
+	owner := args.Owner
+
+	// We have a  unique key restriction on the "owner" and "name" fields,
+	// which will cause the insert to fail if there is another record with
+	// the same "owner" and "name" in the collection. If the txn is
+	// aborted, check if it is due to the unique key restriction.
+	name := args.Config.Name()
+	models, closer := st.db().GetCollection(modelsC)
+	defer closer()
+	modelCount, countErr := models.Find(bson.D{
+		{Name: "owner", Value: owner.Id()},
+		{Name: "name", Value: name}},
+	).Count()
+	if countErr != nil {
+		return nil, nil, errors.Trace(countErr)
+	} else if modelCount > 0 {
+		return nil, nil, errors.AlreadyExistsf("model %q for %s", name, owner.Id())
+	}
+
 	controllerInfo, err := st.ControllerInfo()
 	if err != nil {
 		return nil, nil, errors.Trace(err)
@@ -350,34 +369,10 @@ func (ctlr *Controller) NewModel(args ModelArgs) (_ *Model, _ *State, err error)
 		return nil, nil, errors.Trace(err)
 	}
 
-	var prereqOps []txn.Op
-
 	// If no region specified and the cloud only has one, default to that.
 	if args.CloudRegion == "" && len(modelCloud.Regions) == 1 {
 		args.CloudRegion = modelCloud.Regions[0].Name
 	}
-	assertCloudRegionOp, err := validateCloudRegion(modelCloud, args.CloudRegion)
-	if err != nil {
-		return nil, nil, errors.Trace(err)
-	}
-	prereqOps = append(prereqOps, assertCloudRegionOp)
-
-	// Ensure that the cloud credential is valid, or if one is not
-	// specified, that the cloud supports the "empty" authentication
-	// type.
-	owner := args.Owner
-	cloudCredentials, err := st.CloudCredentials(owner, args.CloudName)
-	if err != nil {
-		return nil, nil, errors.Trace(err)
-	}
-
-	assertCloudCredentialOp, err := validateCloudCredential(
-		modelCloud, cloudCredentials, args.CloudCredential,
-	)
-	if err != nil {
-		return nil, nil, errors.Trace(err)
-	}
-	prereqOps = append(prereqOps, assertCloudCredentialOp)
 
 	uuid := args.Config.UUID()
 	session := st.session.Copy()
@@ -401,51 +396,62 @@ func (ctlr *Controller) NewModel(args ModelArgs) (_ *Model, _ *State, err error)
 	}()
 	newSt.controllerModelTag = st.controllerModelTag
 
-	modelOps, modelStatusDoc, err := newSt.modelSetupOps(st.controllerTag.Id(), args, nil)
+	// Ensure that the cloud credential is valid, or if one is not
+	// specified, that the cloud supports the "empty" authentication
+	// type.
+
+	cloudCredentials, err := st.CloudCredentials(owner, args.CloudName)
+	if err != nil {
+		return nil, nil, errors.Trace(err)
+	}
+
+	// Check that the cloud exists.
+	// TODO(wallyworld) - this can't yet be tested since we check that the
+	// model cloud is the same as the controller cloud, and hooks can't be
+	// used because a new state is created.
+	if _, err := newSt.Cloud(args.CloudName); err != nil {
+		return nil, nil, errors.Trace(err)
+	}
+
+	var modelStatusDoc statusDoc
+	buildTxn := func(attempt int) ([]txn.Op, error) {
+		var prereqOps []txn.Op
+
+		assertCloudRegionOp, err := validateCloudRegion(modelCloud, args.CloudRegion)
+		if err != nil {
+			return nil, errors.Trace(err)
+		}
+		prereqOps = append(prereqOps, assertCloudRegionOp)
+
+		assertCloudCredentialOp, err := validateCloudCredential(
+			modelCloud, cloudCredentials, args.CloudCredential,
+		)
+		if err != nil {
+			return nil, errors.Trace(err)
+		}
+		prereqOps = append(prereqOps, assertCloudCredentialOp)
+
+		var modelOps []txn.Op
+		modelOps, modelStatusDoc, err = newSt.modelSetupOps(st.controllerTag.Id(), args, nil)
+		if err != nil {
+			return nil, errors.Annotate(err, "failed to create new model")
+		}
+
+		ops := append(prereqOps, modelOps...)
+
+		// Increment the model count for the cloud to which this model belongs.
+		incCloudRefOp, err := incCloudModelRefOp(st, args.CloudName)
+		if err != nil {
+			return nil, errors.Trace(err)
+		}
+		ops = append(ops, incCloudRefOp)
+
+		return ops, nil
+	}
+
+	err = newSt.db().Run(buildTxn)
 	if err != nil {
 		return nil, nil, errors.Annotate(err, "failed to create new model")
-	}
-
-	ops := append(prereqOps, modelOps...)
-
-	// Increment the model count for the cloud to which this model belongs.
-	incCloudRefOp, err := incCloudModelRefOp(st, args.CloudName)
-	if err != nil {
-		return nil, nil, errors.Trace(err)
-	}
-	ops = append(ops, incCloudRefOp)
-
-	err = newSt.db().RunTransaction(ops)
-	if err == txn.ErrAborted {
-		// Check that the cloud exists.
-		// TODO(wallyworld) - this can't yet be tested since we check that the
-		// model cloud is the same as the controller cloud, and hooks can't be
-		// used because a new state is created.
-		if _, err := newSt.Cloud(args.CloudName); err != nil {
-			return nil, nil, errors.Trace(err)
-		}
-
-		// We have a  unique key restriction on the "owner" and "name" fields,
-		// which will cause the insert to fail if there is another record with
-		// the same "owner" and "name" in the collection. If the txn is
-		// aborted, check if it is due to the unique key restriction.
-		name := args.Config.Name()
-		models, closer := st.db().GetCollection(modelsC)
-		defer closer()
-		modelCount, countErr := models.Find(bson.D{
-			{"owner", owner.Id()},
-			{"name", name}},
-		).Count()
-		if countErr != nil {
-			err = errors.Trace(countErr)
-		} else if modelCount > 0 {
-			err = errors.AlreadyExistsf("model %q for %s", name, owner.Id())
-		} else {
-			err = errors.Annotate(err, "failed to create new model")
-		}
-	}
-	if err != nil {
-		return nil, nil, errors.Trace(err)
 	}
 
 	newModel, err := newSt.Model()
