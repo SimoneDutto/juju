@@ -373,6 +373,7 @@ func (st *State) modelSetupOps(controllerUUID string, args ModelArgs, inherited 
 		createConstraintsOp(modelGlobalKey, args.Constraints),
 	}
 	// Inc ref count for hosted models.
+	// here
 	if controllerModelUUID != modelUUID {
 		ops = append(ops, incHostedModelCountOp())
 	}

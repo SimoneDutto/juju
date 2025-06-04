@@ -408,6 +408,7 @@ func (ctlr *Controller) NewModel(args ModelArgs) (_ *Model, _ *State, err error)
 
 	ops := append(prereqOps, modelOps...)
 
+	// here
 	// Increment the model count for the cloud to which this model belongs.
 	incCloudRefOp, err := incCloudModelRefOp(st, args.CloudName)
 	if err != nil {
