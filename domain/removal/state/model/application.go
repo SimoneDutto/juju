@@ -641,7 +641,7 @@ WHERE uuid = $entityUUID.uuid`, charmUUID)
 	}
 
 	if objectStoreUUID.UUID.Valid {
-		if err := st.deleteFromObjectStore(ctx, tx, objectStoreUUID.UUID.V); err != nil {
+		if err := st.deleteResourceFromObjectStoreIfUnused(ctx, tx, objectStoreUUID.UUID.V); err != nil {
 			return errors.Errorf("deleting charm object store entry: %w", err)
 		}
 	}
@@ -726,6 +726,27 @@ WHERE store_uuid = $entityAssociationCount.uuid
 		st.logger.Infof(ctx, "object store %q is still used by %d resource(s), not deleting", objectStoreUUID, resourceCount.Count)
 		return nil
 	}
+
+	charmStmt, err := st.Prepare(`
+SELECT COUNT(*) AS &entityAssociationCount.count
+FROM charm
+WHERE object_store_uuid = $entityAssociationCount.uuid
+`, uuidCount)
+	if err != nil {
+		return errors.Capture(err)
+	}
+
+	st.logger.Errorf(ctx, "running charm usage query for object store %q", objectStoreUUID)
+	// It is also possible for an underlying object store item to be used by a charm.
+	// Only delete the object store entry if it is not used by any charms.
+	var charmCount entityAssociationCount
+	if err := tx.Query(ctx, charmStmt, uuidCount).Get(&charmCount); err != nil {
+		return errors.Errorf("running charm usage query: %w", err)
+	} else if charmCount.Count > 0 {
+		st.logger.Infof(ctx, "object store %q is still used by %d charm(s), not deleting", objectStoreUUID, charmCount.Count)
+		return nil
+	}
+	st.logger.Errorf(ctx, "object store %q is still used by %d charm(s), not deleting", objectStoreUUID, charmCount.Count)
 
 	return st.deleteFromObjectStore(ctx, tx, objectStoreUUID)
 }
