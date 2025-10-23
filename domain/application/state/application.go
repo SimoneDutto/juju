@@ -1640,6 +1640,10 @@ WHERE  uuid = $entityUUID.uuid
 			return errors.Errorf("getting next charm modified version for application %q: %w", appIdent.UUID, err)
 		}
 
+		if err := st.updateApplicationDirectiveCharmUUIDReference(ctx, tx, appID, chID); err != nil {
+			return errors.Errorf("updating application directive charm UUID reference: %w", err)
+		}
+
 		if err := tx.Query(
 			ctx, updateCharmModifiedVersionStmt, appIdent, charmModifiedVersion{Version: nextCharmModifiedVersion},
 		).Run(); err != nil {
@@ -1651,6 +1655,23 @@ WHERE  uuid = $entityUUID.uuid
 		return errors.Capture(err)
 	}
 
+	return nil
+}
+
+func (st *State) updateApplicationDirectiveCharmUUIDReference(ctx context.Context, tx *sqlair.TX, appID coreapplication.UUID, chID corecharm.ID) error {
+	charmUUID := charmID{UUID: chID}
+	appUUID := entityUUID{UUID: appID.String()}
+	updateDirectiveStmt, err := st.Prepare(`
+UPDATE application_storage_directive
+SET charm_uuid = $charmID.uuid
+WHERE application_uuid = $entityUUID.uuid;
+`, charmID{}, entityUUID{})
+	if err != nil {
+		return errors.Capture(err)
+	}
+	if err := tx.Query(ctx, updateDirectiveStmt, charmUUID, appUUID).Run(); err != nil {
+		return errors.Errorf("updating application directive charm UUID reference: %w", err)
+	}
 	return nil
 }
 
