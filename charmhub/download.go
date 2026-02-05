@@ -181,7 +181,7 @@ func (c *downloadClient) downloadFromURL(ctx context.Context, resourceURL *url.U
 
 	resp, err = c.httpClient.Do(req)
 	if err != nil {
-		return nil, errors.Annotate(err, "cannot get archive")
+		return nil, errors.NewNotYetAvailable(err, "cannot get archive")
 	}
 	// If we get anything but a 200 status code, we don't know how to correctly
 	// handle that scenario. Return early and deal with the failure later on.
@@ -199,6 +199,9 @@ func (c *downloadClient) downloadFromURL(ctx context.Context, resourceURL *url.U
 
 	if resp.StatusCode == http.StatusNotFound {
 		return nil, errors.NotFoundf("archive")
+	}
+	if resp.StatusCode >= http.StatusInternalServerError && resp.StatusCode <= http.StatusGatewayTimeout {
+		return nil, errors.NotYetAvailablef("store API responded with status: %s", resp.Status)
 	}
 
 	// Server error, nothing we can do other than inform the user that the
