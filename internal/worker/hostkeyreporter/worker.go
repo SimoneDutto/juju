@@ -7,7 +7,6 @@ import (
 	"context"
 	"os"
 	"path/filepath"
-	"time"
 
 	"github.com/juju/errors"
 	"github.com/juju/worker/v4"
@@ -15,7 +14,6 @@ import (
 	"gopkg.in/tomb.v2"
 
 	internallogger "github.com/juju/juju/internal/logger"
-	"github.com/juju/juju/internal/wrench"
 )
 
 var logger = internallogger.GetLogger("juju.worker.hostkeyreporter")
@@ -74,9 +72,6 @@ func (w *hostkeyreporter) loop() error {
 	ctx, cancel := w.scopedContext()
 	defer cancel()
 
-	if wrench.IsActive("hostkeyreporter", "delay") {
-		time.Sleep(time.Minute)
-	}
 	keys, err := w.readSSHKeys(ctx)
 	if err != nil {
 		return errors.Trace(err)
