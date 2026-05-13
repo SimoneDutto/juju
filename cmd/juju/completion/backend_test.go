@@ -12,7 +12,7 @@ func TestControllersReturnsSortedNames(t *testing.T) {
 	store.Controllers["zeta"] = jujuclient.ControllerDetails{}
 	store.Controllers["alpha"] = jujuclient.ControllerDetails{}
 
-	backend := &Backend{Store: store, currentController: defaultCurrentController, currentModel: unreachableCurrentModel, statusFetcher: unreachableStatusFetcher}
+	backend := &Backend{Store: store, currentModel: unreachableCurrentModel, statusFetcher: unreachableStatusFetcher}
 	controllers, err := backend.Controllers()
 	if err != nil {
 		t.Fatalf("listing controllers: %v", err)
@@ -20,11 +20,10 @@ func TestControllersReturnsSortedNames(t *testing.T) {
 	assertEqualStrings(t, controllers, []string{"alpha", "zeta"})
 }
 
-func TestModelsReturnsControllerQualifiedAndBareCurrentModels(t *testing.T) {
+func TestModelsReturnsControllerQualifiedModels(t *testing.T) {
 	store := jujuclient.NewMemStore()
 	store.Controllers["alpha"] = jujuclient.ControllerDetails{}
 	store.Controllers["beta"] = jujuclient.ControllerDetails{}
-	store.CurrentControllerName = "alpha"
 	store.Models["alpha"] = &jujuclient.ControllerModels{
 		Models: map[string]jujuclient.ModelDetails{
 			"admin/first":  {},
@@ -38,14 +37,12 @@ func TestModelsReturnsControllerQualifiedAndBareCurrentModels(t *testing.T) {
 		},
 	}
 
-	backend := &Backend{Store: store, currentController: defaultCurrentController, currentModel: unreachableCurrentModel, statusFetcher: unreachableStatusFetcher}
+	backend := &Backend{Store: store, currentModel: unreachableCurrentModel, statusFetcher: unreachableStatusFetcher}
 	models, err := backend.Models()
 	if err != nil {
 		t.Fatalf("listing models: %v", err)
 	}
 	assertEqualStrings(t, models, []string{
-		"admin/first",
-		"admin/second",
 		"alpha:admin/first",
 		"alpha:admin/second",
 		"beta:admin/other",
@@ -65,9 +62,8 @@ func TestApplicationsUnitsAndMachinesUseResolvedModel(t *testing.T) {
 	}
 
 	backend := &Backend{
-		Store:             store,
-		currentController: defaultCurrentController,
-		currentModel:      func(_ jujuclient.ClientStore) (string, error) { return "alpha:first", nil },
+		Store:        store,
+		currentModel: func(_ jujuclient.ClientStore) (string, error) { return "alpha:first", nil },
 		statusFetcher: func(_ jujuclient.ClientStore, modelIdentifier string) (*params.FullStatus, error) {
 			if modelIdentifier != "alpha:first" {
 				t.Fatalf("unexpected model resolution: %s", modelIdentifier)
@@ -115,9 +111,8 @@ func TestApplicationsUnitsAndMachinesUseResolvedModel(t *testing.T) {
 
 func TestApplicationsPassExplicitModelThrough(t *testing.T) {
 	backend := &Backend{
-		Store:             jujuclient.NewMemStore(),
-		currentController: defaultCurrentController,
-		currentModel:      unreachableCurrentModel,
+		Store:        jujuclient.NewMemStore(),
+		currentModel: unreachableCurrentModel,
 		statusFetcher: func(_ jujuclient.ClientStore, modelIdentifier string) (*params.FullStatus, error) {
 			if modelIdentifier != "test-36:admin/example" {
 				t.Fatalf("unexpected explicit model identifier: %s", modelIdentifier)
@@ -143,10 +138,6 @@ func assertEqualStrings(t *testing.T, got, want []string) {
 			t.Fatalf("unexpected values: got %v want %v", got, want)
 		}
 	}
-}
-
-func defaultCurrentController(store jujuclient.ClientStore) (string, error) {
-	return store.CurrentController()
 }
 
 func unreachableCurrentModel(_ jujuclient.ClientStore) (string, error) {

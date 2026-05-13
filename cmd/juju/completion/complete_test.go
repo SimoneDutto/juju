@@ -9,10 +9,9 @@ import (
 
 func TestCompleteHelpReturnsCommands(t *testing.T) {
 	backend := &Backend{
-		Store:             jujuclient.NewMemStore(),
-		currentController: defaultCurrentController,
-		currentModel:      unreachableCurrentModel,
-		statusFetcher:     unreachableStatusFetcher,
+		Store:         jujuclient.NewMemStore(),
+		currentModel:  unreachableCurrentModel,
+		statusFetcher: unreachableStatusFetcher,
 	}
 
 	candidates, err := backend.Complete(testSnapshot(), Request{
@@ -33,10 +32,9 @@ func TestCompleteHelpReturnsCommands(t *testing.T) {
 
 func TestCompleteFlagsForCommand(t *testing.T) {
 	backend := &Backend{
-		Store:             jujuclient.NewMemStore(),
-		currentController: defaultCurrentController,
-		currentModel:      unreachableCurrentModel,
-		statusFetcher:     unreachableStatusFetcher,
+		Store:         jujuclient.NewMemStore(),
+		currentModel:  unreachableCurrentModel,
+		statusFetcher: unreachableStatusFetcher,
 	}
 
 	candidates, err := backend.Complete(testSnapshot(), Request{
@@ -52,9 +50,8 @@ func TestCompleteFlagsForCommand(t *testing.T) {
 
 func TestCompleteApplicationsFromCommandPosition(t *testing.T) {
 	backend := &Backend{
-		Store:             jujuclient.NewMemStore(),
-		currentController: defaultCurrentController,
-		currentModel:      func(_ jujuclient.ClientStore) (string, error) { return "test-36:admin/example", nil },
+		Store:        jujuclient.NewMemStore(),
+		currentModel: func(_ jujuclient.ClientStore) (string, error) { return "test-36:admin/example", nil },
 		statusFetcher: func(_ jujuclient.ClientStore, modelIdentifier string) (*params.FullStatus, error) {
 			if modelIdentifier != "test-36:admin/example" {
 				t.Fatalf("unexpected model identifier: %s", modelIdentifier)
@@ -81,7 +78,6 @@ func TestCompleteSwitchMergesControllersAndModels(t *testing.T) {
 	store := jujuclient.NewMemStore()
 	store.Controllers["test-36"] = jujuclient.ControllerDetails{}
 	store.Controllers["other"] = jujuclient.ControllerDetails{}
-	store.CurrentControllerName = "test-36"
 	store.Models["test-36"] = &jujuclient.ControllerModels{
 		Models: map[string]jujuclient.ModelDetails{
 			"admin/example": {},
@@ -89,10 +85,9 @@ func TestCompleteSwitchMergesControllersAndModels(t *testing.T) {
 	}
 
 	backend := &Backend{
-		Store:             store,
-		currentController: defaultCurrentController,
-		currentModel:      unreachableCurrentModel,
-		statusFetcher:     unreachableStatusFetcher,
+		Store:         store,
+		currentModel:  unreachableCurrentModel,
+		statusFetcher: unreachableStatusFetcher,
 	}
 
 	candidates, err := backend.Complete(testSnapshot(), Request{

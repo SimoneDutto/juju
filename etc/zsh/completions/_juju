@@ -14,7 +14,7 @@ _juju() {
     done
 
     comps=(${(f)"$(${words[1]} "${args[@]}" 2>/dev/null)"})
-    _describe 'juju' comps
+    compadd -a comps
 }
 
 if (( $+functions[compdef] )); then

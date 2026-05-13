@@ -12,31 +12,27 @@ import (
 	apiclient "github.com/juju/juju/api/client/client"
 	"github.com/juju/juju/api/connector"
 	"github.com/juju/juju/api/jujuclient"
-	"github.com/juju/juju/cmd/modelcmd"
 	internallogger "github.com/juju/juju/internal/logger"
 	"github.com/juju/juju/juju/osenv"
 	"github.com/juju/juju/rpc/params"
 )
 
-type currentControllerFunc func(jujuclient.ClientStore) (string, error)
 type currentModelFunc func(jujuclient.ClientStore) (string, error)
 type statusFetcherFunc func(jujuclient.ClientStore, string) (*params.FullStatus, error)
 
 // Backend serves shell completion candidates backed by Juju client state.
 type Backend struct {
-	Store             jujuclient.ClientStore
-	currentController currentControllerFunc
-	currentModel      currentModelFunc
-	statusFetcher     statusFetcherFunc
+	Store         jujuclient.ClientStore
+	currentModel  currentModelFunc
+	statusFetcher statusFetcherFunc
 }
 
 // NewBackend returns a completion backend using the local Juju client store.
 func NewBackend() *Backend {
 	return &Backend{
-		Store:             jujuclient.NewFileClientStore(),
-		currentController: modelcmd.DetermineCurrentController,
-		currentModel:      determineCurrentModel,
-		statusFetcher:     fetchStatus,
+		Store:         jujuclient.NewFileClientStore(),
+		currentModel:  determineCurrentModel,
+		statusFetcher: fetchStatus,
 	}
 }
 
@@ -55,13 +51,8 @@ func (b *Backend) Controllers() ([]string, error) {
 }
 
 // Models returns model names suitable for `--model` completion.
-// It emits `controller:model` for all known controllers, and bare model names
-// for the current controller to match existing shell behavior.
+// Every model is emitted as `controller:model` for consistency.
 func (b *Backend) Models() ([]string, error) {
-	currentController, err := b.currentController(b.Store)
-	if err != nil {
-		return nil, err
-	}
 	controllers, err := b.Controllers()
 	if err != nil {
 		return nil, err
@@ -76,12 +67,8 @@ func (b *Backend) Models() ([]string, error) {
 			}
 			return nil, err
 		}
-		modelNames := mapKeys(models)
-		for _, modelName := range modelNames {
+		for _, modelName := range mapKeys(models) {
 			result = append(result, controllerName+":"+modelName)
-		}
-		if controllerName == currentController {
-			result = append(result, modelNames...)
 		}
 	}
 	sort.Strings(result)
