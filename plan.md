@@ -76,6 +76,10 @@ bundling the binary and scripts into the snap.
 
 **Depends on Phase 2.**
 
+For the exploratory/debugging version, do not write tests. Keep the binary small and inspectable
+while the shell input shape is still being discovered. Validate manually by enabling completion
+and observing the debug output from real shell invocations.
+
 **3a — `tree.go`** — load `internal/completion/static.json` at binary init; no subprocess, no
 API connection.
 
@@ -141,6 +145,26 @@ _juju() {
 - `make install-completion` → install binary + both shell scripts
 - `make install-bash-completion`
 - `make install-zsh-completion`
+- Local exploratory targets:
+  - `make enable-zsh-completion` → install local `juju`/`juju-complete`, write
+    `${JUJU_DATA:-.juju}/zsh/site-functions/_juju`, then print the `fpath`/`compinit` command
+    needed to enable it in the current zsh session.
+  - `make enable-bash-completion` → install local `juju`/`juju-complete`, write
+    `${JUJU_DATA:-.juju}/bash_completion.d/juju`, then print the `source` command needed to
+    enable it in the current bash session.
+
+Local enablement examples:
+
+```zsh
+make enable-zsh-completion
+fpath=(${JUJU_DATA:-.juju}/zsh/site-functions $fpath)
+autoload -Uz compinit && compinit
+```
+
+```bash
+make enable-bash-completion
+source ${JUJU_DATA:-.juju}/bash_completion.d/juju
+```
 
 ### Phase 5 — Snap Support
 
@@ -182,8 +206,11 @@ Repeat Phase 1 script against `juju-complete`:
 
 ## Verification
 
-1. `go test ./cmd/juju-complete/... -race`
-2. `make pre-check` (golangci-lint + gci)
+Do not add or require new tests while the completion protocol is still exploratory. Prefer
+manual validation and benchmarks until the input/output contract is stable.
+
+1. `go build ./cmd/juju-complete`
+2. `make pre-check` (golangci-lint + gci) before submitting non-exploratory changes
 3. Manual bash: source bash script, tab-complete `juju dep<TAB>`, `juju deploy --<TAB>`,
    `juju ssh -m <TAB>`
 4. Manual zsh: `compinit`, same tests
