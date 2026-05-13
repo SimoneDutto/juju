@@ -631,7 +631,6 @@ install-etc:
 ## install-etc: Install auto-completion
 	@echo Installing bash completion
 	@sudo install -o root -g root -m 644 etc/bash_completion.d/juju /usr/share/bash-completion/completions
-	@sudo install -o root -g root -m 644 etc/bash_completion.d/juju-version /usr/share/bash-completion/completions
 
 .PHONY: setup-lxd
 setup-lxd:

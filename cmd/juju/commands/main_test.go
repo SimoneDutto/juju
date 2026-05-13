@@ -200,6 +200,7 @@ func (s *MainSuite) TestActualRunJujuArgOrder(c *tc.C) {
 
 var commandNames = []string{
 	"actions",
+	"autocomplete",
 	"add-cloud",
 	"add-credential",
 	"add-k8s",

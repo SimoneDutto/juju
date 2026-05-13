@@ -295,7 +295,7 @@ parts:
       export CGO_ENABLED=0
       export GO_LDFLAGS='-s -w -extldflags "-static" -X github.com/juju/juju/core/version.GitCommit= -X github.com/juju/juju/core/version.GitTreeState= -X github.com/juju/juju/core/version.Grade= -X github.com/juju/juju/core/version.build= -X github.com/juju/juju/internal/cloudconfig/podcfg.JujudOCINamespace='
       go mod download
-      go install -ldflags "${GO_LDFLAGS}" github.com/juju/juju/cmd/juju github.com/juju/juju/cmd/jujuc github.com/juju/juju/cmd/plugins/juju-metadata
+      go install -ldflags "${GO_LDFLAGS}" github.com/juju/juju/cmd/juju github.com/juju/juju/cmd/juju-autocomplete github.com/juju/juju/cmd/jujuc github.com/juju/juju/cmd/plugins/juju-metadata
 
       for completion in etc/bash_completion.d/*; do
         install -D ${completion} ../install/usr/share/bash-completion/completions/$(basename ${completion})
