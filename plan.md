@@ -1,4 +1,80 @@
-# Plan: Juju Autocompletion — Implemented `juju-completion` Backend
+# Juju Shell Completion
+
+Completion is embedded in the `juju` binary as `juju autocomplete`. Shell
+wrappers call it and feed the output to the shell's completion machinery.
+Dynamic entities (applications, units, machines) are resolved via a direct
+API connection — no subprocess calls to `juju`.
+
+## Architecture
+
+```
+shell tab-press
+  └─ etc/bash_completion.d/juju  (or etc/zsh/completions/_juju)
+       └─ juju autocomplete --cword N --current W --word W ...
+            ├─ completion.Describe(registerCommands)   → static snapshot
+            └─ completion.Backend.Complete(snapshot, req)
+                 ├─ offline: controllers, models       → local client store
+                 └─ online:  applications, units,      → api/connector +
+                             machines                    api/client/client
+```
+
+## Key files
+
+| File | Role |
+|---|---|
+| `cmd/juju/commands/autocomplete.go` | `juju autocomplete` subcommand |
+| `cmd/juju/completion/metadata.go` | Builds static snapshot of all commands and flags |
+| `cmd/juju/completion/complete.go` | Routes a shell request to candidate sets |
+| `cmd/juju/completion/backend.go` | Provides controllers/models/apps/units/machines |
+| `cmd/juju-completion/main.go` | Standalone binary (retained, shares the same library) |
+| `etc/bash_completion.d/juju` | Bash wrapper — `source` to activate |
+| `etc/zsh/completions/_juju` | Zsh wrapper — `source` or add dir to `fpath` |
+
+## Static snapshot
+
+`completion.Describe(func(Registry))` accepts an injected registrar to avoid
+an import cycle between `completion` and `commands`. Both `autocomplete.go`
+and `juju-completion/main.go` pass `commands.RegisterCommands` through a small
+local adapter struct.
+
+## Dynamic backend
+
+`Backend` in `backend.go` has two tiers:
+
+**Offline (~0 ms)** — reads the local YAML client store directly:
+- `Controllers()` — `store.AllControllers()`
+- `Models()` — `store.AllModels(controller)` for every controller
+- `currentModel(store)` — `JUJU_MODEL` env var → `store.CurrentController()` +
+  `store.CurrentModel(controller)`; no subprocess
+
+**Online (≤3 s dial timeout)** — opens a direct API connection:
+- `Applications`, `Units`, `Machines` — `resolveModelUUID` looks up the UUID
+  in `store.AllModels`, opens `connector.NewClientStore(ClientStoreConfig{…})`,
+  calls `apiclient.NewClient(conn, logger).Status(ctx, nil)`, closes the
+  connection; on any error returns empty so completion never blocks
+
+## Shell activation
+
+```bash
+# bash
+source etc/bash_completion.d/juju
+
+# zsh
+source etc/zsh/completions/_juju
+# or add to fpath:
+fpath=(etc/zsh/completions $fpath) && autoload -Uz compinit && compinit
+```
+
+## Deferred
+
+- snap packaging
+- fish completion
+- cache layer for status-backed completion
+
+- fish completion
+- REPL completion
+- cache layer for status-backed completion
+- benchmark documentation
 
 ## TL;DR
 

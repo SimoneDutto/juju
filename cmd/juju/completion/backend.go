@@ -1,23 +1,26 @@
 package completion
 
 import (
-	"encoding/json"
+	"context"
 	"os"
-	"os/exec"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/juju/errors"
 
+	apiclient "github.com/juju/juju/api/client/client"
+	"github.com/juju/juju/api/connector"
 	"github.com/juju/juju/api/jujuclient"
 	"github.com/juju/juju/cmd/modelcmd"
+	internallogger "github.com/juju/juju/internal/logger"
 	"github.com/juju/juju/juju/osenv"
 	"github.com/juju/juju/rpc/params"
 )
 
 type currentControllerFunc func(jujuclient.ClientStore) (string, error)
-type currentModelFunc func() (string, error)
-type statusFetcherFunc func(string) (*params.FullStatus, error)
+type currentModelFunc func(jujuclient.ClientStore) (string, error)
+type statusFetcherFunc func(jujuclient.ClientStore, string) (*params.FullStatus, error)
 
 // Backend serves shell completion candidates backed by Juju client state.
 type Backend struct {
@@ -126,49 +129,90 @@ func (b *Backend) status(model string) (*params.FullStatus, error) {
 	if err != nil {
 		return nil, err
 	}
-	return b.statusFetcher(modelIdentifier)
+	return b.statusFetcher(b.Store, modelIdentifier)
 }
 
 func (b *Backend) resolveModel(model string) (string, error) {
 	if model != "" {
 		return model, nil
 	}
-	return b.currentModel()
+	return b.currentModel(b.Store)
 }
 
-func determineCurrentModel() (string, error) {
+// determineCurrentModel reads the current model from the local client store.
+// It checks JUJU_MODEL first, then falls back to the store's current
+// controller and current model — no subprocess is required.
+func determineCurrentModel(store jujuclient.ClientStore) (string, error) {
 	if model := os.Getenv(osenv.JujuModelEnvKey); model != "" {
 		return model, nil
 	}
-	binary, err := jujuBinary()
+	controller, err := store.CurrentController()
 	if err != nil {
 		return "", err
 	}
-	output, err := exec.Command(binary, "switch").Output()
+	model, err := store.CurrentModel(controller)
 	if err != nil {
-		return "", commandError(err)
+		return "", err
 	}
-	model := strings.TrimSpace(string(output))
-	if model == "" {
-		return "", errors.NotFoundf("current model")
-	}
-	return model, nil
+	return controller + ":" + model, nil
 }
 
-func fetchStatus(modelIdentifier string) (*params.FullStatus, error) {
-	binary, err := jujuBinary()
+// fetchStatus opens a direct API connection to the resolved model and calls
+// the Client.Status facade. Dial timeout is 3 s; on any error the empty
+// status is returned so completion never blocks the shell.
+func fetchStatus(store jujuclient.ClientStore, modelIdentifier string) (*params.FullStatus, error) {
+	controllerName, modelUUID, err := resolveModelUUID(store, modelIdentifier)
 	if err != nil {
 		return nil, err
 	}
-	output, err := exec.Command(binary, "status", "--model", modelIdentifier, "--format", "json").Output()
+
+	conn, err := connector.NewClientStore(connector.ClientStoreConfig{
+		ControllerName: controllerName,
+		ModelUUID:      modelUUID,
+		ClientStore:    store,
+	})
 	if err != nil {
-		return nil, commandError(err)
+		return nil, err
 	}
-	var status params.FullStatus
-	if err := json.Unmarshal(output, &status); err != nil {
-		return nil, errors.Annotate(err, "decoding juju status output")
+
+	dialCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	apiConn, err := conn.Connect(dialCtx)
+	if err != nil {
+		return nil, err
 	}
-	return &status, nil
+	defer apiConn.Close()
+
+	logger := internallogger.GetLogger("juju.completion")
+	return apiclient.NewClient(apiConn, logger).Status(dialCtx, nil)
+}
+
+// resolveModelUUID parses a "controller:model" or bare "model" identifier and
+// returns the controller name and model UUID from the local store.
+func resolveModelUUID(store jujuclient.ClientStore, modelIdentifier string) (string, string, error) {
+	var controllerName, modelName string
+	if idx := strings.Index(modelIdentifier, ":"); idx >= 0 {
+		controllerName = modelIdentifier[:idx]
+		modelName = modelIdentifier[idx+1:]
+	} else {
+		var err error
+		controllerName, err = store.CurrentController()
+		if err != nil {
+			return "", "", err
+		}
+		modelName = modelIdentifier
+	}
+
+	models, err := store.AllModels(controllerName)
+	if err != nil {
+		return "", "", err
+	}
+	details, ok := models[modelName]
+	if !ok {
+		return "", "", errors.NotFoundf("model %q on controller %q", modelName, controllerName)
+	}
+	return controllerName, details.ModelUUID, nil
 }
 
 func mapKeys[T any](values map[string]T) []string {
@@ -178,25 +222,4 @@ func mapKeys[T any](values map[string]T) []string {
 	}
 	sort.Strings(keys)
 	return keys
-}
-
-func jujuBinary() (string, error) {
-	for _, candidate := range []string{"juju", "juju-2"} {
-		path, err := exec.LookPath(candidate)
-		if err == nil {
-			return path, nil
-		}
-	}
-	return "", errors.NotFoundf("juju binary")
-}
-
-func commandError(err error) error {
-	var exitErr *exec.ExitError
-	if errors.As(err, &exitErr) {
-		stderr := strings.TrimSpace(string(exitErr.Stderr))
-		if stderr != "" {
-			return errors.New(stderr)
-		}
-	}
-	return errors.Annotate(err, "running juju command")
 }

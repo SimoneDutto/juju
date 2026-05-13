@@ -67,8 +67,8 @@ func TestApplicationsUnitsAndMachinesUseResolvedModel(t *testing.T) {
 	backend := &Backend{
 		Store:             store,
 		currentController: defaultCurrentController,
-		currentModel:      func() (string, error) { return "alpha:first", nil },
-		statusFetcher: func(modelIdentifier string) (*params.FullStatus, error) {
+		currentModel:      func(_ jujuclient.ClientStore) (string, error) { return "alpha:first", nil },
+		statusFetcher: func(_ jujuclient.ClientStore, modelIdentifier string) (*params.FullStatus, error) {
 			if modelIdentifier != "alpha:first" {
 				t.Fatalf("unexpected model resolution: %s", modelIdentifier)
 			}
@@ -118,7 +118,7 @@ func TestApplicationsPassExplicitModelThrough(t *testing.T) {
 		Store:             jujuclient.NewMemStore(),
 		currentController: defaultCurrentController,
 		currentModel:      unreachableCurrentModel,
-		statusFetcher: func(modelIdentifier string) (*params.FullStatus, error) {
+		statusFetcher: func(_ jujuclient.ClientStore, modelIdentifier string) (*params.FullStatus, error) {
 			if modelIdentifier != "test-36:admin/example" {
 				t.Fatalf("unexpected explicit model identifier: %s", modelIdentifier)
 			}
@@ -149,10 +149,10 @@ func defaultCurrentController(store jujuclient.ClientStore) (string, error) {
 	return store.CurrentController()
 }
 
-func unreachableCurrentModel() (string, error) {
+func unreachableCurrentModel(_ jujuclient.ClientStore) (string, error) {
 	panic("current model should not be called")
 }
 
-func unreachableStatusFetcher(string) (*params.FullStatus, error) {
+func unreachableStatusFetcher(_ jujuclient.ClientStore, _ string) (*params.FullStatus, error) {
 	panic("status fetcher should not be called")
 }

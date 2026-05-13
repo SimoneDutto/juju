@@ -54,8 +54,8 @@ func TestCompleteApplicationsFromCommandPosition(t *testing.T) {
 	backend := &Backend{
 		Store:             jujuclient.NewMemStore(),
 		currentController: defaultCurrentController,
-		currentModel:      func() (string, error) { return "test-36:admin/example", nil },
-		statusFetcher: func(modelIdentifier string) (*params.FullStatus, error) {
+		currentModel:      func(_ jujuclient.ClientStore) (string, error) { return "test-36:admin/example", nil },
+		statusFetcher: func(_ jujuclient.ClientStore, modelIdentifier string) (*params.FullStatus, error) {
 			if modelIdentifier != "test-36:admin/example" {
 				t.Fatalf("unexpected model identifier: %s", modelIdentifier)
 			}
