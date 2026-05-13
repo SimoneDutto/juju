@@ -9,9 +9,9 @@ import (
 
 	"github.com/juju/errors"
 
+	"github.com/juju/juju/api/jujuclient"
 	"github.com/juju/juju/cmd/modelcmd"
 	"github.com/juju/juju/juju/osenv"
-	"github.com/juju/juju/jujuclient"
 	"github.com/juju/juju/rpc/params"
 )
 
@@ -135,7 +135,6 @@ func (b *Backend) resolveModel(model string) (string, error) {
 	}
 	return b.currentModel()
 }
-
 
 func determineCurrentModel() (string, error) {
 	if model := os.Getenv(osenv.JujuModelEnvKey); model != "" {

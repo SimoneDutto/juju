@@ -3,7 +3,7 @@ package completion
 import (
 	"testing"
 
-	"github.com/juju/juju/jujuclient"
+	"github.com/juju/juju/api/jujuclient"
 	"github.com/juju/juju/rpc/params"
 )
 
@@ -112,7 +112,6 @@ func TestApplicationsUnitsAndMachinesUseResolvedModel(t *testing.T) {
 	}
 	assertEqualStrings(t, machines, []string{"0", "1"})
 }
-
 
 func TestApplicationsPassExplicitModelThrough(t *testing.T) {
 	backend := &Backend{

@@ -4,10 +4,9 @@ import (
 	"io"
 	"sort"
 
-	"github.com/juju/cmd/v3"
 	"github.com/juju/gnuflag"
 
-	"github.com/juju/juju/cmd/juju/commands"
+	"github.com/juju/juju/cmd/cmd"
 )
 
 // Snapshot describes the static command metadata exported by the completion backend.
@@ -32,6 +31,13 @@ type Flag struct {
 	IsBoolean bool   `json:"isBoolean,omitempty"`
 }
 
+// Registry records Juju commands as they are registered.
+type Registry interface {
+	Register(cmd.Command)
+	RegisterSuperAlias(name, super, forName string, check cmd.DeprecationCheck)
+	RegisterDeprecated(subcmd cmd.Command, check cmd.DeprecationCheck)
+}
+
 type registry struct {
 	commands []Command
 }
@@ -41,9 +47,9 @@ type boolFlag interface {
 }
 
 // Describe returns a stable snapshot of the registered Juju commands.
-func Describe() Snapshot {
+func Describe(register func(Registry)) Snapshot {
 	r := &registry{}
-	commands.RegisterCommands(r)
+	register(r)
 	sort.Slice(r.commands, func(i, j int) bool {
 		return r.commands[i].Name < r.commands[j].Name
 	})
@@ -138,4 +144,4 @@ func describeFlags(command cmd.Command, name string) []Flag {
 	return flags
 }
 
-var _ commands.Registry = (*registry)(nil)
+var _ Registry = (*registry)(nil)

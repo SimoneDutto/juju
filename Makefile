@@ -137,7 +137,6 @@ endef
 # compiled
 define BUILD_CLIENT_TARGETS
 	$(call tool_platform_paths,juju,${CLIENT_PACKAGE_PLATFORMS}) \
-	$(call tool_platform_paths,juju-complete,${CLIENT_PACKAGE_PLATFORMS}) \
 	$(call tool_platform_paths,juju-metadata,${CLIENT_PACKAGE_PLATFORMS})
 endef
 
@@ -153,7 +152,6 @@ endef
 # install is run.
 define INSTALL_TARGETS
 	juju \
-	juju-complete \
 	jujuc \
 	jujud \
 	containeragent \
@@ -307,21 +305,20 @@ juju:
 ## juju: Install juju without updating dependencies
 	${run_go_install}
 
-.PHONY: juju-complete
-juju-complete: PACKAGE = github.com/juju/juju/cmd/juju-complete
-juju-complete:
-## juju-complete: Install juju-complete without updating dependencies
-	${run_go_install}
-
 .PHONY: enable-zsh-completion
-enable-zsh-completion: juju juju-complete
+enable-zsh-completion: juju
 ## enable-zsh-completion: Install local zsh completion for this checkout
 	@mkdir -p "$${JUJU_DATA:-$(PROJECT_DIR)/.juju}/zsh/site-functions"
 	@printf '%s\n' \
 		'#compdef juju' \
 		'_juju() {' \
-		'    local -a comps' \
-		'    comps=($${(f)"$$(juju-complete --shell zsh --position "$$CURRENT" -- $${words[@]})"})' \
+		'    local -a comps args' \
+		'    local word' \
+		'    args=(autocomplete --cword "$${CURRENT:--1}" --current "$${words[CURRENT]-}")' \
+		'    for word in "$${words[@]}"; do' \
+		'        args+=(--word "$${word}")' \
+		'    done' \
+		'    comps=($${(f)"$$($${words[1]} "$${args[@]}")"})' \
 		'    _describe '\''juju'\'' comps' \
 		'}' \
 		'if (( $$+functions[compdef] )); then' \
@@ -332,13 +329,25 @@ enable-zsh-completion: juju juju-complete
 	@echo "Run: fpath=($${JUJU_DATA:-$(PROJECT_DIR)/.juju}/zsh/site-functions \$$fpath) && autoload -Uz compinit && compinit"
 
 .PHONY: enable-bash-completion
-enable-bash-completion: juju juju-complete
+enable-bash-completion: juju
 ## enable-bash-completion: Install local bash completion for this checkout
 	@mkdir -p "$${JUJU_DATA:-$(PROJECT_DIR)/.juju}/bash_completion.d"
 	@printf '%s\n' \
 		'_juju() {' \
 		'    local IFS=$$'"'"'\n'"'"'' \
-		'    COMPREPLY=($$(juju-complete --shell bash --position "$$COMP_CWORD" -- "$${COMP_WORDS[@]}"))' \
+		'    local current cword word' \
+		'    local args words' \
+		'    current="$${COMP_WORDS[COMP_CWORD]}"' \
+		'    cword=$${COMP_CWORD}' \
+		'    words=("$${COMP_WORDS[@]}")' \
+		'    if (( cword >= $${#words[@]} )); then' \
+		'        words+=("$${current}")' \
+		'    fi' \
+		'    args=(autocomplete --cword "$${cword}" --current "$${current}")' \
+		'    for word in "$${words[@]}"; do' \
+		'        args+=(--word "$${word}")' \
+		'    done' \
+		'    COMPREPLY=($$("$${words[0]}" "$${args[@]}" 2>/dev/null))' \
 		'}' \
 		'complete -F _juju juju' \
 		> "$${JUJU_DATA:-$(PROJECT_DIR)/.juju}/bash_completion.d/juju"
@@ -439,11 +448,6 @@ ${BUILD_DIR}/%/bin/containeragent: phony_explicit
 ${BUILD_DIR}/%/bin/juju-metadata: PACKAGE = github.com/juju/juju/cmd/plugins/juju-metadata
 ${BUILD_DIR}/%/bin/juju-metadata: phony_explicit
 # build for juju-metadata
-	$(run_go_build)
-
-${BUILD_DIR}/%/bin/juju-complete: PACKAGE = github.com/juju/juju/cmd/juju-complete
-${BUILD_DIR}/%/bin/juju-complete: phony_explicit
-# build for juju-complete
 	$(run_go_build)
 
 ${BUILD_DIR}/%/bin/pebble: PACKAGE = github.com/canonical/pebble/cmd/pebble

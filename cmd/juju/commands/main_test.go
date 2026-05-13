@@ -125,7 +125,7 @@ func (s *MainSuite) TestRunMain(c *tc.C) {
 		summary: "unknown command with match",
 		args:    []string{"discombobulate"},
 		code:    1,
-		out:     missingCommandMessage("discombobulate", "dashboard"),
+		out:     missingCommandMessage("discombobulate", "autocomplete"),
 	}, {
 		summary: "unknown command",
 		args:    []string{"pseudopseudohypoparathyroidism"},
@@ -200,6 +200,7 @@ func (s *MainSuite) TestActualRunJujuArgOrder(c *tc.C) {
 
 var commandNames = []string{
 	"actions",
+	"autocomplete",
 	"add-cloud",
 	"add-credential",
 	"add-k8s",

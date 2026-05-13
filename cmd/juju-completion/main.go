@@ -7,9 +7,10 @@ import (
 	"os"
 	"strings"
 
-	"github.com/juju/cmd/v3"
-	"github.com/juju/loggo"
+	"github.com/juju/loggo/v2"
 
+	jujucmd "github.com/juju/juju/cmd/cmd"
+	"github.com/juju/juju/cmd/juju/commands"
 	"github.com/juju/juju/cmd/juju/completion"
 	"github.com/juju/juju/internal/debug/coveruploader"
 	_ "github.com/juju/juju/internal/provider/all"
@@ -18,7 +19,7 @@ import (
 
 func main() {
 	coveruploader.Enable()
-	_, err := loggo.ReplaceDefaultWriter(cmd.NewWarningWriter(os.Stderr))
+	_, err := loggo.ReplaceDefaultWriter(jujucmd.NewWarningWriter(os.Stderr))
 	if err != nil {
 		panic(err)
 	}
@@ -28,12 +29,14 @@ func main() {
 // Main is the entrypoint for the juju-completion executable.
 func Main(args []string) int {
 	if err := juju.InitJujuXDGDataHome(); err != nil {
-		cmd.WriteError(os.Stderr, err)
+		jujucmd.WriteError(os.Stderr, err)
 		return 2
 	}
 
 	backend := completion.NewBackend()
-	snapshot := completion.Describe()
+	snapshot := completion.Describe(func(r completion.Registry) {
+		commands.RegisterCommands(commandRegistryAdapter{registry: r})
+	})
 	subcommand := "describe"
 	if len(args) > 1 {
 		subcommand = args[1]
@@ -46,7 +49,7 @@ func Main(args []string) int {
 			return 2
 		}
 		if err := json.NewEncoder(os.Stdout).Encode(snapshot); err != nil {
-			cmd.WriteError(os.Stderr, err)
+			jujucmd.WriteError(os.Stderr, err)
 			return 1
 		}
 	case "commands":
@@ -106,6 +109,22 @@ func Main(args []string) int {
 		return 2
 	}
 	return 0
+}
+
+type commandRegistryAdapter struct {
+	registry completion.Registry
+}
+
+func (a commandRegistryAdapter) Register(command jujucmd.Command) {
+	a.registry.Register(command)
+}
+
+func (a commandRegistryAdapter) RegisterSuperAlias(name, super, forName string, check jujucmd.DeprecationCheck) {
+	a.registry.RegisterSuperAlias(name, super, forName, check)
+}
+
+func (a commandRegistryAdapter) RegisterDeprecated(command jujucmd.Command, check jujucmd.DeprecationCheck) {
+	a.registry.RegisterDeprecated(command, check)
 }
 
 type entityCommand struct {
@@ -177,7 +196,7 @@ func printLines(values []string) {
 
 func printBackendLines(values []string, err error) int {
 	if err != nil {
-		cmd.WriteError(os.Stderr, err)
+		jujucmd.WriteError(os.Stderr, err)
 		return 1
 	}
 	printLines(values)

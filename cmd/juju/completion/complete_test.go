@@ -3,7 +3,7 @@ package completion
 import (
 	"testing"
 
-	"github.com/juju/juju/jujuclient"
+	"github.com/juju/juju/api/jujuclient"
 	"github.com/juju/juju/rpc/params"
 )
 
@@ -15,7 +15,7 @@ func TestCompleteHelpReturnsCommands(t *testing.T) {
 		statusFetcher:     unreachableStatusFetcher,
 	}
 
-	candidates, err := backend.Complete(Describe(), Request{
+	candidates, err := backend.Complete(testSnapshot(), Request{
 		Words:   []string{"juju", "help", "co"},
 		Cword:   2,
 		Current: "co",
@@ -39,7 +39,7 @@ func TestCompleteFlagsForCommand(t *testing.T) {
 		statusFetcher:     unreachableStatusFetcher,
 	}
 
-	candidates, err := backend.Complete(Describe(), Request{
+	candidates, err := backend.Complete(testSnapshot(), Request{
 		Words:   []string{"juju", "deploy", "--c"},
 		Cword:   2,
 		Current: "--c",
@@ -66,7 +66,7 @@ func TestCompleteApplicationsFromCommandPosition(t *testing.T) {
 		},
 	}
 
-	candidates, err := backend.Complete(Describe(), Request{
+	candidates, err := backend.Complete(testSnapshot(), Request{
 		Words:   []string{"juju", "config", "b"},
 		Cword:   2,
 		Current: "b",
@@ -95,7 +95,7 @@ func TestCompleteSwitchMergesControllersAndModels(t *testing.T) {
 		statusFetcher:     unreachableStatusFetcher,
 	}
 
-	candidates, err := backend.Complete(Describe(), Request{
+	candidates, err := backend.Complete(testSnapshot(), Request{
 		Words:   []string{"juju", "switch", "test"},
 		Cword:   2,
 		Current: "test",
@@ -104,4 +104,13 @@ func TestCompleteSwitchMergesControllersAndModels(t *testing.T) {
 		t.Fatalf("completing switch targets: %v", err)
 	}
 	assertEqualStrings(t, candidates, []string{"test-36", "test-36:admin/example"})
+}
+
+func testSnapshot() Snapshot {
+	return Snapshot{Commands: []Command{
+		{Name: "config"},
+		{Name: "controllers"},
+		{Name: "deploy", Flags: []Flag{{Name: "channel"}, {Name: "config"}, {Name: "constraints"}}},
+		{Name: "switch"},
+	}}
 }

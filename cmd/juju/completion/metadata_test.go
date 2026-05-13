@@ -4,6 +4,8 @@ import (
 	"os"
 	"testing"
 
+	jujucmd "github.com/juju/juju/cmd/cmd"
+	"github.com/juju/juju/cmd/juju/commands"
 	"github.com/juju/juju/cmd/juju/completion"
 	"github.com/juju/juju/juju/osenv"
 )
@@ -18,7 +20,7 @@ func TestDescribeIncludesDeployAndItsFlags(t *testing.T) {
 	oldHome := osenv.SetJujuXDGDataHome(dir)
 	defer osenv.SetJujuXDGDataHome(oldHome)
 
-	snapshot := completion.Describe()
+	snapshot := describeSnapshot()
 	deploy, found := findCommand(snapshot, "deploy")
 	if !found {
 		t.Fatalf("deploy command not found")
@@ -41,7 +43,7 @@ func TestDescribeIncludesDeployAndItsFlags(t *testing.T) {
 }
 
 func TestCommandNamesIncludeAliases(t *testing.T) {
-	snapshot := completion.Describe()
+	snapshot := describeSnapshot()
 	names := snapshot.CommandNames()
 	if !contains(names, "actions") {
 		t.Fatalf("command name %q not found", "actions")
@@ -52,7 +54,7 @@ func TestCommandNamesIncludeAliases(t *testing.T) {
 }
 
 func TestFlagsForResolvesAliases(t *testing.T) {
-	snapshot := completion.Describe()
+	snapshot := describeSnapshot()
 	flags := snapshot.FlagsFor("list-actions")
 	if !contains(flags, "--schema") {
 		t.Fatalf("expected flag %q for alias-backed lookup", "--schema")
@@ -84,4 +86,26 @@ func contains(values []string, target string) bool {
 		}
 	}
 	return false
+}
+
+func describeSnapshot() completion.Snapshot {
+	return completion.Describe(func(r completion.Registry) {
+		commands.RegisterCommands(commandRegistryAdapter{registry: r})
+	})
+}
+
+type commandRegistryAdapter struct {
+	registry completion.Registry
+}
+
+func (a commandRegistryAdapter) Register(command jujucmd.Command) {
+	a.registry.Register(command)
+}
+
+func (a commandRegistryAdapter) RegisterSuperAlias(name, super, forName string, check jujucmd.DeprecationCheck) {
+	a.registry.RegisterSuperAlias(name, super, forName, check)
+}
+
+func (a commandRegistryAdapter) RegisterDeprecated(command jujucmd.Command, check jujucmd.DeprecationCheck) {
+	a.registry.RegisterDeprecated(command, check)
 }

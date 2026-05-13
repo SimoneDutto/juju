@@ -348,6 +348,7 @@ func registerCommands(r commandRegistry) {
 	// the Dashboard.
 	// Update allowedEmbeddedCommands in apiserver.go
 	r.Register(newVersionCommand())
+	r.Register(newAutocompleteCommand())
 	// Creation commands.
 	r.Register(newBootstrapCommand())
 	r.Register(application.NewAddRelationCommand())

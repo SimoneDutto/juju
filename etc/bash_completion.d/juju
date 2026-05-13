@@ -1,36 +1,9 @@
 #!/usr/bin/env bash
 
 # Thin Bash completion adapter for Juju.
-#
-# All Juju-specific completion logic lives in the juju-completion backend.
-
-_juju_completion_backend_path() {
-    if [ -n "${_juju_cmd_JUJU_COMPLETION:-}" ] && [ -x "${_juju_cmd_JUJU_COMPLETION}" ]; then
-        printf '%s\n' "${_juju_cmd_JUJU_COMPLETION}"
-        return 0
-    fi
-
-    if command -v juju-completion >/dev/null 2>&1; then
-        command -v juju-completion
-        return 0
-    fi
-
-    if [ -n "${GOPATH:-}" ] && [ -x "${GOPATH}/bin/juju-completion" ]; then
-        printf '%s\n' "${GOPATH}/bin/juju-completion"
-        return 0
-    fi
-
-    if [ -x "/snap/bin/juju-completion" ]; then
-        printf '%s\n' "/snap/bin/juju-completion"
-        return 0
-    fi
-
-    return 1
-}
 
 _juju_complete() {
-    local backend current cword word
-    backend=$(_juju_completion_backend_path) || return 1
+    local current cword word
 
     current="${COMP_WORDS[COMP_CWORD]}"
     cword=${COMP_CWORD}
@@ -40,12 +13,12 @@ _juju_complete() {
         words+=("${current}")
     fi
 
-    local args=(complete --cword "${cword}" --current "${current}")
+    local args=(autocomplete --cword "${cword}" --current "${current}")
     for word in "${words[@]}"; do
         args+=(--word "${word}")
     done
 
-    mapfile -t COMPREPLY < <("${backend}" "${args[@]}" 2>/dev/null)
+    mapfile -t COMPREPLY < <("${words[0]}" "${args[@]}" 2>/dev/null)
 }
 
 complete -o default -F _juju_complete juju

@@ -1,0 +1,22 @@
+#compdef juju
+
+# Zsh completion adapter for Juju.
+# Sources candidates from `juju autocomplete`.
+
+_juju() {
+    local -a comps
+    local -a args
+    local word
+
+    args=(autocomplete --cword "$(( CURRENT - 1 ))" --current "${words[CURRENT]-}")
+    for word in "${words[@]}"; do
+        args+=(--word "${word}")
+    done
+
+    comps=(${(f)"$(${words[1]} "${args[@]}" 2>/dev/null)"})
+    _describe 'juju' comps
+}
+
+if (( $+functions[compdef] )); then
+    compdef _juju juju
+fi
