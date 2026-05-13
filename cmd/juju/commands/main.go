@@ -325,8 +325,20 @@ type commandRegistry interface {
 	RegisterDeprecated(subcmd cmd.Command, check cmd.DeprecationCheck)
 }
 
+// Registry records Juju commands as they are registered.
+type Registry interface {
+	Register(cmd.Command)
+	RegisterSuperAlias(name, super, forName string, check cmd.DeprecationCheck)
+	RegisterDeprecated(subcmd cmd.Command, check cmd.DeprecationCheck)
+}
+
 // TODO(ericsnow) Factor out the commands and aliases into a static
 // registry that can be passed to the supercommand separately.
+
+// RegisterCommands registers the Juju CLI commands in the supplied registry.
+func RegisterCommands(r Registry) {
+	registerCommands(r)
+}
 
 // registerCommands registers commands in the specified registry.
 func registerCommands(r commandRegistry) {
