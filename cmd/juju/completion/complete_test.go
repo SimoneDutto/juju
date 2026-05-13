@@ -50,6 +50,42 @@ func TestCompleteFlagsForCommand(t *testing.T) {
 	assertEqualStrings(t, candidates, []string{"--channel", "--config", "--constraints"})
 }
 
+func TestCompleteFlagsForBareDoubleDash(t *testing.T) {
+	backend := &Backend{
+		Store:         jujuclient.NewMemStore(),
+		currentModel:  unreachableCurrentModel,
+		statusFetcher: unreachableStatusFetcher,
+	}
+
+	candidates, err := backend.Complete(testSnapshot(), Request{
+		Words:   []string{"juju", "status", "--"},
+		Cword:   2,
+		Current: "--",
+	})
+	if err != nil {
+		t.Fatalf("completing bare double-dash flags: %v", err)
+	}
+	assertEqualStrings(t, candidates, []string{"--color", "--format"})
+}
+
+func TestCompleteFlagsForBareSingleDash(t *testing.T) {
+	backend := &Backend{
+		Store:         jujuclient.NewMemStore(),
+		currentModel:  unreachableCurrentModel,
+		statusFetcher: unreachableStatusFetcher,
+	}
+
+	candidates, err := backend.Complete(testSnapshot(), Request{
+		Words:   []string{"juju", "config", "-"},
+		Cword:   2,
+		Current: "-",
+	})
+	if err != nil {
+		t.Fatalf("completing bare single-dash flags: %v", err)
+	}
+	assertEqualStrings(t, candidates, []string{"--model", "-m"})
+}
+
 func TestCompleteCommandNamesUsePrefixMatching(t *testing.T) {
 	backend := &Backend{
 		Store:         jujuclient.NewMemStore(),
@@ -210,7 +246,7 @@ func testSnapshot() Snapshot {
 		},
 		{Name: "controllers"},
 		{Name: "show-status-log"},
-		{Name: "status"},
+		{Name: "status", Flags: []Flag{{Name: "color"}, {Name: "format"}}},
 		{Name: "status-history"},
 		{Name: "deploy", Flags: []Flag{{Name: "channel"}, {Name: "config"}, {Name: "constraints"}}, Autocomplete: &basecmd.Autocomplete{Positionals: []basecmd.AutocompleteArg{
 			{Resources: []basecmd.AutocompleteResource{{Kind: basecmd.AutocompleteCharms}}},
