@@ -614,6 +614,9 @@ func (c *DeployCommand) Info() *cmd.Info {
 		Purpose:  "Deploys a new application or bundle.",
 		Doc:      deployDoc,
 		Examples: deployExamples,
+		Autocomplete: &cmd.Autocomplete{Positionals: []cmd.AutocompleteArg{
+			{Resources: []cmd.AutocompleteResource{{Kind: cmd.AutocompleteCharms}}},
+		}},
 		SeeAlso: []string{
 			"integrate",
 			"add-unit",

@@ -327,6 +327,7 @@ const (
 	AutocompleteUnits             AutocompleteResourceKind = "units"
 	AutocompleteMachines          AutocompleteResourceKind = "machines"
 	AutocompleteApplicationConfig AutocompleteResourceKind = "application-config-keys"
+	AutocompleteCharms            AutocompleteResourceKind = "charms"
 )
 
 // AutocompleteReference returns a positional argument reference for

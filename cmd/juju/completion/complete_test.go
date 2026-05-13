@@ -1,6 +1,7 @@
 package completion
 
 import (
+	"context"
 	"testing"
 
 	"github.com/juju/juju/api/jujuclient"
@@ -120,6 +121,30 @@ func TestCompleteApplicationConfigKeysFromSecondPositional(t *testing.T) {
 	assertEqualStrings(t, candidates, []string{"port"})
 }
 
+func TestCompleteDeployCharmsFromFirstPositional(t *testing.T) {
+	backend := &Backend{
+		Store:         jujuclient.NewMemStore(),
+		currentModel:  unreachableCurrentModel,
+		statusFetcher: unreachableStatusFetcher,
+		charmFinder: func(_ context.Context, prefix string) ([]string, error) {
+			if prefix != "post" {
+				t.Fatalf("unexpected charm prefix: %s", prefix)
+			}
+			return []string{"postgresql", "postgresql-k8s", "prometheus"}, nil
+		},
+	}
+
+	candidates, err := backend.Complete(testSnapshot(), Request{
+		Words:   []string{"juju", "deploy", "post"},
+		Cword:   2,
+		Current: "post",
+	})
+	if err != nil {
+		t.Fatalf("completing deploy charms: %v", err)
+	}
+	assertEqualStrings(t, candidates, []string{"postgresql", "postgresql-k8s"})
+}
+
 func TestCompleteApplicationsIgnoresFlagValuesWhenFindingPosition(t *testing.T) {
 	backend := &Backend{
 		Store:        jujuclient.NewMemStore(),
@@ -184,10 +209,12 @@ func testSnapshot() Snapshot {
 			}},
 		},
 		{Name: "controllers"},
-		{Name: "deploy", Flags: []Flag{{Name: "channel"}, {Name: "config"}, {Name: "constraints"}}},
 		{Name: "show-status-log"},
 		{Name: "status"},
 		{Name: "status-history"},
+		{Name: "deploy", Flags: []Flag{{Name: "channel"}, {Name: "config"}, {Name: "constraints"}}, Autocomplete: &basecmd.Autocomplete{Positionals: []basecmd.AutocompleteArg{
+			{Resources: []basecmd.AutocompleteResource{{Kind: basecmd.AutocompleteCharms}}},
+		}}},
 		{Name: "switch", Autocomplete: &basecmd.Autocomplete{Positionals: []basecmd.AutocompleteArg{{Resources: []basecmd.AutocompleteResource{{Kind: basecmd.AutocompleteControllers}, {Kind: basecmd.AutocompleteModels}}}}}},
 	}}
 }

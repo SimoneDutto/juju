@@ -13,6 +13,7 @@ import (
 	apiclient "github.com/juju/juju/api/client/client"
 	"github.com/juju/juju/api/connector"
 	"github.com/juju/juju/api/jujuclient"
+	"github.com/juju/juju/internal/charmhub"
 	internallogger "github.com/juju/juju/internal/logger"
 	"github.com/juju/juju/juju/osenv"
 	"github.com/juju/juju/rpc/params"
@@ -21,6 +22,7 @@ import (
 type currentModelFunc func(jujuclient.ClientStore) (string, error)
 type statusFetcherFunc func(jujuclient.ClientStore, string) (*params.FullStatus, error)
 type applicationConfigFetcherFunc func(jujuclient.ClientStore, string, string) (*params.ApplicationGetResults, error)
+type charmFinderFunc func(context.Context, string) ([]string, error)
 
 // Backend serves shell completion candidates backed by Juju client state.
 type Backend struct {
@@ -28,6 +30,7 @@ type Backend struct {
 	currentModel             currentModelFunc
 	statusFetcher            statusFetcherFunc
 	applicationConfigFetcher applicationConfigFetcherFunc
+	charmFinder              charmFinderFunc
 }
 
 // NewBackend returns a completion backend using the local Juju client store.
@@ -37,6 +40,7 @@ func NewBackend() *Backend {
 		currentModel:             determineCurrentModel,
 		statusFetcher:            fetchStatus,
 		applicationConfigFetcher: fetchApplicationConfig,
+		charmFinder:              fetchCharmNames,
 	}
 }
 
@@ -131,6 +135,38 @@ func (b *Backend) ApplicationConfigKeys(model, application string) ([]string, er
 	return mergeCandidates(mapKeys(result.CharmConfig), mapKeys(result.ApplicationConfig)), nil
 }
 
+// Charms returns Charmhub charm names matching the supplied prefix.
+func (b *Backend) Charms(prefix string) ([]string, error) {
+	if strings.TrimSpace(prefix) == "" {
+		return nil, nil
+	}
+	query := prefix
+	candidatePrefix := ""
+	if strings.HasPrefix(prefix, "ch:") {
+		query = strings.TrimPrefix(prefix, "ch:")
+		candidatePrefix = "ch:"
+		if query == "" {
+			return nil, nil
+		}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	finder := b.charmFinder
+	if finder == nil {
+		finder = fetchCharmNames
+	}
+	names, err := finder(ctx, query)
+	if err != nil {
+		return nil, nil
+	}
+	if candidatePrefix != "" {
+		for i, name := range names {
+			names[i] = candidatePrefix + name
+		}
+	}
+	return names, nil
+}
+
 func (b *Backend) status(model string) (*params.FullStatus, error) {
 	modelIdentifier, err := b.resolveModel(model)
 	if err != nil {
@@ -221,6 +257,34 @@ func fetchApplicationConfig(store jujuclient.ClientStore, modelIdentifier, appli
 	defer apiConn.Close()
 
 	return applicationclient.NewClient(apiConn).Get(dialCtx, applicationName)
+}
+
+func fetchCharmNames(ctx context.Context, prefix string) ([]string, error) {
+	serverURL := os.Getenv("CHARMHUB_URL")
+	if serverURL == "" {
+		serverURL = charmhub.DefaultServerURL
+	}
+	client, err := charmhub.NewClient(charmhub.Config{
+		URL:    serverURL,
+		Logger: internallogger.GetLogger("juju.completion.charmhub"),
+	})
+	if err != nil {
+		return nil, err
+	}
+	results, err := client.Find(ctx, prefix, charmhub.WithFindType("charm"))
+	if errors.Is(err, errors.NotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	names := make([]string, 0, len(results))
+	for _, result := range results {
+		if result.Name != "" {
+			names = append(names, result.Name)
+		}
+	}
+	return names, nil
 }
 
 // resolveModelUUID parses a "controller:model" or bare "model" identifier and

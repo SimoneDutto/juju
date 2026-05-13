@@ -1,6 +1,7 @@
 package completion
 
 import (
+	"context"
 	"testing"
 
 	"github.com/juju/juju/api/jujuclient"
@@ -154,6 +155,67 @@ func TestApplicationConfigKeysPassApplicationAndModelThrough(t *testing.T) {
 	assertEqualStrings(t, keys, []string{"port", "trust"})
 }
 
+func TestCharmsPassPrefixThrough(t *testing.T) {
+	backend := &Backend{
+		Store:                    jujuclient.NewMemStore(),
+		currentModel:             unreachableCurrentModel,
+		statusFetcher:            unreachableStatusFetcher,
+		applicationConfigFetcher: unreachableApplicationConfigFetcher,
+		charmFinder: func(_ context.Context, prefix string) ([]string, error) {
+			if prefix != "post" {
+				t.Fatalf("unexpected charm prefix: %s", prefix)
+			}
+			return []string{"postgresql", "postgresql-k8s"}, nil
+		},
+	}
+
+	charms, err := backend.Charms("post")
+	if err != nil {
+		t.Fatalf("listing charms: %v", err)
+	}
+	assertEqualStrings(t, charms, []string{"postgresql", "postgresql-k8s"})
+}
+
+func TestCharmsIgnoresEmptyPrefix(t *testing.T) {
+	backend := &Backend{
+		Store:                    jujuclient.NewMemStore(),
+		currentModel:             unreachableCurrentModel,
+		statusFetcher:            unreachableStatusFetcher,
+		applicationConfigFetcher: unreachableApplicationConfigFetcher,
+		charmFinder: func(context.Context, string) ([]string, error) {
+			t.Fatalf("charm finder should not be called")
+			return nil, nil
+		},
+	}
+
+	charms, err := backend.Charms("")
+	if err != nil {
+		t.Fatalf("listing charms: %v", err)
+	}
+	assertEqualStrings(t, charms, nil)
+}
+
+func TestCharmsSupportsCharmhubURLPrefix(t *testing.T) {
+	backend := &Backend{
+		Store:                    jujuclient.NewMemStore(),
+		currentModel:             unreachableCurrentModel,
+		statusFetcher:            unreachableStatusFetcher,
+		applicationConfigFetcher: unreachableApplicationConfigFetcher,
+		charmFinder: func(_ context.Context, prefix string) ([]string, error) {
+			if prefix != "post" {
+				t.Fatalf("unexpected charm prefix: %s", prefix)
+			}
+			return []string{"postgresql"}, nil
+		},
+	}
+
+	charms, err := backend.Charms("ch:post")
+	if err != nil {
+		t.Fatalf("listing charms: %v", err)
+	}
+	assertEqualStrings(t, charms, []string{"ch:postgresql"})
+}
+
 func assertEqualStrings(t *testing.T, got, want []string) {
 	t.Helper()
 	if len(got) != len(want) {
@@ -172,4 +234,8 @@ func unreachableCurrentModel(_ jujuclient.ClientStore) (string, error) {
 
 func unreachableStatusFetcher(jujuclient.ClientStore, string) (*params.FullStatus, error) {
 	panic("status fetcher should not be called")
+}
+
+func unreachableApplicationConfigFetcher(jujuclient.ClientStore, string, string) (*params.ApplicationGetResults, error) {
+	panic("application config fetcher should not be called")
 }

@@ -84,6 +84,20 @@ func TestDescribeIncludesAutocompleteMetadata(t *testing.T) {
 	if second.Resources[0].FromPositional == nil || *second.Resources[0].FromPositional != 0 {
 		t.Fatalf("unexpected positional dependency: %#v", second.Resources[0].FromPositional)
 	}
+
+	deploy, found := findCommand(snapshot, "deploy")
+	if !found {
+		t.Fatalf("deploy command not found")
+	}
+	if deploy.Autocomplete == nil {
+		t.Fatalf("deploy command autocomplete metadata is empty")
+	}
+	if len(deploy.Autocomplete.Positionals) != 1 {
+		t.Fatalf("unexpected deploy positional metadata: %#v", deploy.Autocomplete.Positionals)
+	}
+	if deploy.Autocomplete.Positionals[0].Resources[0].Kind != basecmd.AutocompleteCharms {
+		t.Fatalf("unexpected deploy positional resource: %#v", deploy.Autocomplete.Positionals[0].Resources)
+	}
 }
 
 func findCommand(snapshot completion.Snapshot, name string) (completion.Command, bool) {

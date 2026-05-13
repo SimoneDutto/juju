@@ -269,6 +269,11 @@ func (b *Backend) completeResource(resource basecmd.AutocompleteResource, model 
 			return nil, nil
 		}
 		return b.ApplicationConfigKeys(model, context.Args[index].Value)
+	case basecmd.AutocompleteCharms:
+		if context.Current < 0 || context.Current >= len(context.Args) {
+			return nil, nil
+		}
+		return b.Charms(context.Args[context.Current].Value)
 	default:
 		return nil, nil
 	}
