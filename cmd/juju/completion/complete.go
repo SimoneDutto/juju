@@ -280,7 +280,7 @@ func filterCandidates(candidates []string, current string) []string {
 	}
 	filtered := make([]string, 0, len(candidates))
 	for _, candidate := range candidates {
-		if strings.Contains(candidate, current) {
+		if strings.HasPrefix(candidate, current) {
 			filtered = append(filtered, candidate)
 		}
 	}

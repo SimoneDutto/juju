@@ -49,6 +49,24 @@ func TestCompleteFlagsForCommand(t *testing.T) {
 	assertEqualStrings(t, candidates, []string{"--channel", "--config", "--constraints"})
 }
 
+func TestCompleteCommandNamesUsePrefixMatching(t *testing.T) {
+	backend := &Backend{
+		Store:         jujuclient.NewMemStore(),
+		currentModel:  unreachableCurrentModel,
+		statusFetcher: unreachableStatusFetcher,
+	}
+
+	candidates, err := backend.Complete(testSnapshot(), Request{
+		Words:   []string{"juju", "status"},
+		Cword:   1,
+		Current: "status",
+	})
+	if err != nil {
+		t.Fatalf("completing exact command name: %v", err)
+	}
+	assertEqualStrings(t, candidates, []string{"status", "status-history"})
+}
+
 func TestCompleteApplicationsFromCommandPosition(t *testing.T) {
 	backend := &Backend{
 		Store:        jujuclient.NewMemStore(),
@@ -167,6 +185,9 @@ func testSnapshot() Snapshot {
 		},
 		{Name: "controllers"},
 		{Name: "deploy", Flags: []Flag{{Name: "channel"}, {Name: "config"}, {Name: "constraints"}}},
+		{Name: "show-status-log"},
+		{Name: "status"},
+		{Name: "status-history"},
 		{Name: "switch", Autocomplete: &basecmd.Autocomplete{Positionals: []basecmd.AutocompleteArg{{Resources: []basecmd.AutocompleteResource{{Kind: basecmd.AutocompleteControllers}, {Kind: basecmd.AutocompleteModels}}}}}},
 	}}
 }
