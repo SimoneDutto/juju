@@ -26,46 +26,24 @@ func (b *Backend) Complete(snapshot Snapshot, request Request) ([]string, error)
 	action := request.action()
 	previous := request.word(request.Cword - 1)
 	model := request.model()
+	command, hasCommand := snapshot.Lookup(action)
+	previousFlagCompletion := completionForFlag(command, previous)
 
 	switch {
 	case request.Cword <= 1:
 		return filterCandidates(snapshot.CommandNames(), current), nil
 	case action == "help":
 		return filterCandidates(snapshot.CommandNames(), current), nil
-	case previous == "--controller" || previous == "-c":
-		controllers, err := b.Controllers()
+	case previousFlagCompletion != "":
+		candidates, err := b.candidatesForTargets(model, []string{previousFlagCompletion})
 		if err != nil {
 			return nil, err
 		}
-		return filterCandidates(controllers, current), nil
-	case previous == "--model" || previous == "-m":
-		models, err := b.Models()
-		if err != nil {
-			return nil, err
-		}
-		return filterCandidates(models, current), nil
-	case previous == "--application":
-		applications, err := b.Applications(model)
-		if err != nil {
-			return nil, err
-		}
-		return filterCandidates(applications, current), nil
-	case previous == "--unit":
-		units, err := b.Units(model, "")
-		if err != nil {
-			return nil, err
-		}
-		return filterCandidates(units, current), nil
-	case previous == "--machine":
-		machines, err := b.Machines(model)
-		if err != nil {
-			return nil, err
-		}
-		return filterCandidates(machines, current), nil
-	case strings.HasPrefix(current, "-") && action != "":
+		return filterCandidates(candidates, current), nil
+	case strings.HasPrefix(current, "-") && hasCommand:
 		return filterCandidates(snapshot.FlagsFor(action), current), nil
 	default:
-		candidates, err := b.completePositional(action, model)
+		candidates, err := b.completePositional(command, request.positionalIndex(command), model)
 		if err != nil {
 			return nil, err
 		}
@@ -73,21 +51,39 @@ func (b *Backend) Complete(snapshot Snapshot, request Request) ([]string, error)
 	}
 }
 
-func (b *Backend) completePositional(action, model string) ([]string, error) {
-	switch action {
-	case "switch":
-		controllers, err := b.Controllers()
+func (b *Backend) completePositional(command Command, index int, model string) ([]string, error) {
+	for _, positional := range command.Positionals {
+		if positional.Index != index && !(positional.Repeat && index >= positional.Index) {
+			continue
+		}
+		return b.candidatesForTargets(model, positional.Targets)
+	}
+	return nil, nil
+}
+
+func (b *Backend) candidatesForTargets(model string, targets []string) ([]string, error) {
+	groups := make([][]string, 0, len(targets))
+	for _, target := range targets {
+		candidates, err := b.candidatesForTarget(model, target)
 		if err != nil {
 			return nil, err
 		}
-		models, err := b.Models()
-		if err != nil {
-			return nil, err
-		}
-		return mergeCandidates(controllers, models), nil
-	case "config", "refresh", "expose", "unexpose", "remove-application", "application-storage", "constraints", "set-constraints", "set-application-base":
+		groups = append(groups, candidates)
+	}
+	return mergeCandidates(groups...), nil
+}
+
+func (b *Backend) candidatesForTarget(model, target string) ([]string, error) {
+	switch target {
+	case CompletionApplications:
 		return b.Applications(model)
-	case "status":
+	case CompletionControllers:
+		return b.Controllers()
+	case CompletionMachines:
+		return b.Machines(model)
+	case CompletionModels:
+		return b.Models()
+	case CompletionStatusTargets:
 		applications, err := b.Applications(model)
 		if err != nil {
 			return nil, err
@@ -97,7 +93,7 @@ func (b *Backend) completePositional(action, model string) ([]string, error) {
 			return nil, err
 		}
 		return mergeCandidates(applications, units), nil
-	case "ssh", "scp", "debug-hooks", "debug-code":
+	case CompletionSSHTargets:
 		units, err := b.Units(model, "")
 		if err != nil {
 			return nil, err
@@ -107,10 +103,16 @@ func (b *Backend) completePositional(action, model string) ([]string, error) {
 			return nil, err
 		}
 		return mergeCandidates(units, machines), nil
-	case "resolved", "remove-unit":
-		return b.Units(model, "")
-	case "show-machine", "remove-machine", "upgrade-machine":
-		return b.Machines(model)
+	case CompletionSwitchTargets:
+		controllers, err := b.Controllers()
+		if err != nil {
+			return nil, err
+		}
+		models, err := b.Models()
+		if err != nil {
+			return nil, err
+		}
+		return mergeCandidates(controllers, models), nil
 	default:
 		return nil, nil
 	}
@@ -147,6 +149,68 @@ func (r Request) model() string {
 		}
 	}
 	return ""
+}
+
+func (r Request) positionalIndex(command Command) int {
+	index := 0
+	for i := 2; i < r.Cword && i < len(r.Words); i++ {
+		token := r.Words[i]
+		if strings.HasPrefix(token, "-") {
+			if flagConsumesValue(command, token) && i+1 < r.Cword {
+				i++
+			}
+			continue
+		}
+		index++
+	}
+	return index
+}
+
+func completionForFlag(command Command, token string) string {
+	name := flagName(token)
+	if name == "" {
+		return ""
+	}
+	switch token {
+	case "-c":
+		return CompletionControllers
+	case "-m":
+		return CompletionModels
+	}
+	for _, flag := range command.Flags {
+		if flag.Name == name {
+			return flag.ValueCompletion
+		}
+	}
+	return flagValueCompletion(name)
+}
+
+func flagConsumesValue(command Command, token string) bool {
+	name := flagName(token)
+	if name == "" || strings.Contains(token, "=") {
+		return false
+	}
+	for _, flag := range command.Flags {
+		if flag.Name == name {
+			return !flag.IsBoolean
+		}
+	}
+	return token == "-c" || token == "-m" || strings.HasPrefix(token, "--")
+}
+
+func flagName(token string) string {
+	switch {
+	case strings.HasPrefix(token, "--"):
+		name := strings.TrimPrefix(token, "--")
+		if idx := strings.Index(name, "="); idx >= 0 {
+			name = name[:idx]
+		}
+		return name
+	case strings.HasPrefix(token, "-") && len(token) == 2:
+		return strings.TrimPrefix(token, "-")
+	default:
+		return ""
+	}
 }
 
 func filterCandidates(candidates []string, current string) []string {

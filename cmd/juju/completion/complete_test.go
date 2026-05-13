@@ -47,7 +47,7 @@ func TestCompleteFlagsForCommand(t *testing.T) {
 	if err != nil {
 		t.Fatalf("completing flags: %v", err)
 	}
-	assertEqualStrings(t, candidates, []string{"--channel", "--config", "--constraints"})
+	assertEqualStrings(t, candidates, []string{"--channel", "--config", "--constraints", "--controller"})
 }
 
 func TestCompleteApplicationsFromCommandPosition(t *testing.T) {
@@ -75,6 +75,29 @@ func TestCompleteApplicationsFromCommandPosition(t *testing.T) {
 		t.Fatalf("completing applications: %v", err)
 	}
 	assertEqualStrings(t, candidates, []string{"backend"})
+}
+
+func TestCompleteFlagValuesFromMetadata(t *testing.T) {
+	store := jujuclient.NewMemStore()
+	store.Controllers["test-36"] = jujuclient.ControllerDetails{}
+	store.Controllers["other"] = jujuclient.ControllerDetails{}
+
+	backend := &Backend{
+		Store:             store,
+		currentController: defaultCurrentController,
+		currentModel:      unreachableCurrentModel,
+		statusFetcher:     unreachableStatusFetcher,
+	}
+
+	candidates, err := backend.Complete(testSnapshot(), Request{
+		Words:   []string{"juju", "deploy", "--controller", "te"},
+		Cword:   3,
+		Current: "te",
+	})
+	if err != nil {
+		t.Fatalf("completing controller flag value: %v", err)
+	}
+	assertEqualStrings(t, candidates, []string{"test-36"})
 }
 
 func TestCompleteSwitchMergesControllersAndModels(t *testing.T) {
@@ -108,9 +131,22 @@ func TestCompleteSwitchMergesControllersAndModels(t *testing.T) {
 
 func testSnapshot() Snapshot {
 	return Snapshot{Commands: []Command{
-		{Name: "config"},
+		{Name: "config", Positionals: []PositionalCompletion{{
+			Index:   0,
+			Targets: []string{CompletionApplications},
+			Repeat:  true,
+		}}},
 		{Name: "controllers"},
-		{Name: "deploy", Flags: []Flag{{Name: "channel"}, {Name: "config"}, {Name: "constraints"}}},
-		{Name: "switch"},
+		{Name: "deploy", Flags: []Flag{
+			{Name: "channel"},
+			{Name: "config"},
+			{Name: "constraints"},
+			{Name: "controller", ValueCompletion: CompletionControllers},
+		}},
+		{Name: "switch", Positionals: []PositionalCompletion{{
+			Index:   0,
+			Targets: []string{CompletionSwitchTargets},
+			Repeat:  true,
+		}}},
 	}}
 }

@@ -61,6 +61,34 @@ func TestFlagsForResolvesAliases(t *testing.T) {
 	}
 }
 
+func TestDescribeIncludesCompletionMetadata(t *testing.T) {
+	snapshot := describeSnapshot()
+
+	deploy, found := findCommand(snapshot, "deploy")
+	if !found {
+		t.Fatalf("deploy command not found")
+	}
+	if flag, found := findFlag(deploy, "model"); !found {
+		t.Fatalf("deploy flag %q not found", "model")
+	} else if flag.ValueCompletion != completion.CompletionModels {
+		t.Fatalf("unexpected model flag completion: %q", flag.ValueCompletion)
+	}
+
+	status, found := findCommand(snapshot, "status")
+	if !found {
+		t.Fatalf("status command not found")
+	}
+	if len(status.Positionals) != 1 {
+		t.Fatalf("unexpected status positionals: %#v", status.Positionals)
+	}
+	if !status.Positionals[0].Repeat {
+		t.Fatalf("expected status positional completion to repeat")
+	}
+	if !contains(status.Positionals[0].Targets, completion.CompletionStatusTargets) {
+		t.Fatalf("expected status positional targets to include %q: %#v", completion.CompletionStatusTargets, status.Positionals[0].Targets)
+	}
+}
+
 func findCommand(snapshot completion.Snapshot, name string) (completion.Command, bool) {
 	for _, command := range snapshot.Commands {
 		if command.Name == name {
