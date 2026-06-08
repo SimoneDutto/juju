@@ -352,3 +352,33 @@ type RevokeCredentialArgs struct {
 	// Credentials holds credentials to revoke.
 	Credentials []RevokeCredentialArg `json:"credentials"`
 }
+
+// ModelConfigSchemaRequest holds cloud types for which to return
+// the model config schema.
+type ModelConfigSchemaRequest struct {
+	CloudTypes []string `json:"cloud-types"`
+}
+
+// ModelConfigSchemaAttr describes a single model configuration attribute.
+type ModelConfigSchemaAttr struct {
+	// Description is a human-readable description of the attribute.
+	Description string `json:"description,omitempty"`
+
+	// Type is the type of the attribute value.
+	Type string `json:"type"`
+
+	// Immutable specifies whether the attribute cannot be changed once set.
+	Immutable bool `json:"immutable,omitempty"`
+}
+
+// ModelConfigSchemaResult holds the model config attribute schema for a
+// single cloud type, or an error.
+type ModelConfigSchemaResult struct {
+	Config map[string]ModelConfigSchemaAttr `json:"config,omitempty"`
+	Error  *Error                           `json:"error,omitempty"`
+}
+
+// ModelConfigSchemaResults holds model config schema results per cloud type.
+type ModelConfigSchemaResults struct {
+	Results []ModelConfigSchemaResult `json:"results"`
+}

@@ -22,6 +22,7 @@ import (
 	jujucloud "github.com/juju/juju/cloud"
 	"github.com/juju/juju/core/permission"
 	"github.com/juju/juju/environs"
+	environsconfig "github.com/juju/juju/environs/config"
 	"github.com/juju/juju/rpc/params"
 	"github.com/juju/juju/state"
 	stateerrors "github.com/juju/juju/state/errors"
@@ -45,6 +46,12 @@ type CloudV7 interface {
 	UpdateCloud(cloudArgs params.UpdateCloudArgs) (params.ErrorResults, error)
 }
 
+// CloudV8 defines the methods on the cloud API facade, version 8.
+type CloudV8 interface {
+	CloudV7
+	ModelConfigSchema(args params.ModelConfigSchemaRequest) (params.ModelConfigSchemaResults, error)
+}
+
 // CloudAPI implements the cloud interface and is the concrete implementation
 // of the api end point.
 type CloudAPI struct {
@@ -59,6 +66,7 @@ type CloudAPI struct {
 
 var (
 	_ CloudV7 = (*CloudAPI)(nil)
+	_ CloudV8 = (*CloudAPI)(nil)
 )
 
 // NewCloudAPI creates a new API server endpoint for managing the controller's
@@ -1102,6 +1110,45 @@ func cloudToParams(cloud cloud.Cloud) params.Cloud {
 		RegionConfig:      regionConfig,
 		IsControllerCloud: cloud.IsControllerCloud,
 	}
+}
+
+// ModelConfigSchema returns the model config attribute schema for each of
+// the requested cloud types. Secret attributes are omitted. For cloud types
+// whose provider implements environs.ProviderSchema, the result includes both
+// common and provider-specific attributes; otherwise only common attributes
+// are returned.
+func (api *CloudAPI) ModelConfigSchema(args params.ModelConfigSchemaRequest) (params.ModelConfigSchemaResults, error) {
+	results := params.ModelConfigSchemaResults{
+		Results: make([]params.ModelConfigSchemaResult, len(args.CloudTypes)),
+	}
+	for i, cloudType := range args.CloudTypes {
+		schemaFields, err := environsconfig.Schema(nil)
+		if err != nil {
+			results.Results[i].Error = apiservererrors.ServerError(err)
+			continue
+		}
+		provider, err := environs.Provider(cloudType)
+		if err == nil {
+			if ps, ok := provider.(environs.ProviderSchema); ok {
+				if full := ps.Schema(); full != nil {
+					schemaFields = full
+				}
+			}
+		}
+		attrs := make(map[string]params.ModelConfigSchemaAttr, len(schemaFields))
+		for name, attr := range schemaFields {
+			if attr.Secret {
+				continue
+			}
+			attrs[name] = params.ModelConfigSchemaAttr{
+				Description: attr.Description,
+				Type:        string(attr.Type),
+				Immutable:   attr.Immutable,
+			}
+		}
+		results.Results[i].Config = attrs
+	}
+	return results, nil
 }
 
 func cloudDetailsToParams(cloud cloud.Cloud) params.CloudDetails {
